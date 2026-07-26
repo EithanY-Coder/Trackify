@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trackify — Student Budget Tracker</title>
+    <!-- Modern Google Font -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Main Stylesheet -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="icon" type="image/png" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💸</text></svg>">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="brand">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="brand-icon">
+                    <path d="M3 3v18h18"/>
+                    <path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"/>
+                </svg>
+                <h1>Trackify</h1>
+            </div>
+            
+            <nav class="nav-menu">
+                <button class="nav-btn active" data-tab="dashboard">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="3" width="7" height="9"/>
+                        <rect x="14" y="3" width="7" height="5"/>
+                        <rect x="14" y="12" width="7" height="9"/>
+                        <rect x="3" y="16" width="7" height="5"/>
+                    </svg>
+                    Dashboard
+                </button>
+                <button class="nav-btn" data-tab="log">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"/>
+                        <line x1="12" y1="8" x2="12" y2="16"/>
+                        <line x1="8" y1="12" x2="16" y2="12"/>
+                    </svg>
+                    Log Transaction
+                </button>
+                <button class="nav-btn" data-tab="ai-log">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m0-12.728l.707.707m11.314 11.314l.707-.707M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z"/>
+                    </svg>
+                    AI Quick Log
+                </button>
+                <button class="nav-btn" data-tab="history">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="8" y1="6" x2="21" y2="6"/>
+                        <line x1="8" y1="12" x2="21" y2="12"/>
+                        <line x1="8" y1="18" x2="21" y2="18"/>
+                        <line x1="3" y1="6" x2="3.01" y2="6"/>
+                        <line x1="3" y1="12" x2="3.01" y2="12"/>
+                        <line x1="3" y1="18" x2="3.01" y2="18"/>
+                    </svg>
+                    History
+                </button>
+                <button class="nav-btn" data-tab="categories-tab">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
+                        <line x1="7" y1="7" x2="7.01" y2="7"/>
+                    </svg>
+                    Categories
+                </button>
+            </nav>
+
+            <div class="quick-summary-card">
+                <h3>Net Balance</h3>
+                <div class="balance-amount" id="sidebar-net-balance">$0.00</div>
+                <div class="balance-sub" id="sidebar-status-msg">Welcome, Budgeter!</div>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <!-- Top Mobile Bar -->
+            <header class="mobile-header">
+                <div class="brand">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="brand-icon">
+                        <path d="M3 3v18h18"/>
+                        <path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"/>
+                    </svg>
+                    <h1>Trackify</h1>
+                </div>
+                <div class="menu-toggle" id="mobile-menu-toggle">☰</div>
+            </header>
+
+            <!-- TAB 1: Dashboard -->
+            <section id="dashboard" class="tab-content active">
+                <div class="content-header">
+                    <h2>Financial Overview</h2>
+                    <p class="subtitle">Here's how your budget is looking</p>
+                </div>
+
+                <!-- Stats Grid -->
+                <div class="stats-grid-unified">
+                    <div class="unified-stat-row">
+                        <div class="stat-column income">
+                            <span class="stat-label">Total Income</span>
+                            <h3 class="stat-value" id="dashboard-total-income">$0.00</h3>
+                            <span class="stat-sub" id="dashboard-total-income-sub">vs previous period</span>
+                        </div>
+                        <div class="stat-column expense">
+                            <span class="stat-label">Total Expenses</span>
+                            <h3 class="stat-value" id="dashboard-total-expenses">$0.00</h3>
+                            <span class="stat-sub" id="dashboard-total-expenses-sub">vs previous period</span>
+                        </div>
+                        <div class="stat-column balance">
+                            <span class="stat-label">Net Balance</span>
+                            <h3 class="stat-value" id="dashboard-net-savings">$0.00</h3>
+                            <span class="stat-sub" id="dashboard-savings-rate">Savings rate 0%</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Charts Section -->
+                <div class="dashboard-grid">
+                    <!-- Custom SVG Line/Bar Chart -->
+                    <div class="card glass chart-card span-2">
+                        <div class="card-header">
+                            <h3>Cash Flow Timeline</h3>
+                            <div class="chart-actions">
+                                <button class="filter-btn active" data-chart-filter="all">All Time</button>
+                                <button class="filter-btn" data-chart-filter="month">This Month</button>
+                                <button class="filter-btn" data-chart-filter="week">This Week</button>
+                            </div>
+                        </div>
+                        <div class="chart-container" id="timeline-chart-container">
+                            <!-- Custom SVG Chart will be injected here -->
+                            <div class="no-data-msg">No transactions logged yet.</div>
+                        </div>
+                    </div>
+
+                    <!-- Expense Breakdown List Card -->
+                    <div class="card glass chart-card">
+                        <div class="card-header">
+                            <h3>Expense Breakdown</h3>
+                        </div>
+                        <div class="breakdown-list-container" id="category-breakdown-container">
+                            <div class="no-data-msg">No expenses to display.</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Activities & Budget Progress -->
+                <div class="dashboard-grid">
+                    <div class="card glass span-2">
+                        <div class="card-header">
+                            <h3>Recent Transactions</h3>
+                            <button class="view-all-link" id="view-all-history">View All</button>
+                        </div>
+                        <div class="recent-list-container">
+                            <div class="table-responsive">
+                                <table class="transaction-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Date</th>
+                                            <th>Description</th>
+                                            <th>Category</th>
+                                            <th>Amount</th>
+                                            <th>Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="recent-transactions-tbody">
+                                        <!-- Injected via Javascript -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card glass">
+                        <div class="card-header">
+                            <h3>Budget Categories</h3>
+                        </div>
+                        <div class="category-list-scroll" id="dashboard-category-list">
+                            <!-- Injected via Javascript -->
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 2: Log Transaction -->
+            <section id="log" class="tab-content">
+                <div class="content-header">
+                    <h2>Log New Entry</h2>
+                    <p class="subtitle">Keep track of every dollar in or out</p>
+                </div>
+
+                <div class="log-grid">
+                    <!-- Log Form Card -->
+                    <div class="card glass form-card">
+                        <!-- Form Switcher -->
+                        <div class="form-switcher">
+                            <button type="button" class="switch-btn active" id="btn-switch-expense">Expense</button>
+                            <button type="button" class="switch-btn" id="btn-switch-income">Income</button>
+                        </div>
+
+                        <!-- EXPENSE FORM -->
+                        <form id="expense-form" class="transaction-form active">
+                            <div class="form-group">
+                                <label for="expense-amount">Amount ($)</label>
+                                <input type="number" id="expense-amount" step="0.01" min="0.01" placeholder="0.00" required>
+                            </div>
+
+                            <div class="form-group">
+                                <label>Category</label>
+                                <div class="custom-select-container" id="expense-category-container">
+                                    <div class="custom-select-trigger" id="expense-category-trigger">
+                                        <span class="selected-val">Select Category...</span>
+                                        <span class="arrow">▼</span>
+                                    </div>
+                                    <div class="custom-select-options hidden" id="expense-category-options-dropdown">
+                                        <input type="text" class="custom-select-search" id="expense-category-search" placeholder="Search categories..." autocomplete="off">
+                                        <div class="options-list" id="expense-category-options-list">
+                                            <!-- Injected via Javascript -->
+                                        </div>
+                                    </div>
+                                    <input type="hidden" id="expense-category" required>
+                                </div>
+                            </div>
+
+                            <div class="form-group" style="margin-top: 1rem;">
+                                <label>Date</label>
+                                <div class="custom-datepicker-container" id="expense-date-container">
+                                    <div class="custom-datepicker-trigger" id="expense-date-trigger">
+                                        <span class="selected-date">Select Date...</span>
+                                        <span class="calendar-icon">
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                                                <line x1="16" y1="2" x2="16" y2="6"/>
+                                                <line x1="8" y1="2" x2="8" y2="6"/>
+                                                <line x1="3" y1="10" x2="21" y2="10"/>
+                                            </svg>
+                                        </span>
+                                    </div>
+                                    <div class="custom-datepicker-calendar hidden" id="expense-datepicker-calendar"></div>
+                                    <input type="hidden" id="expense-date" required>
+                                </div>
+                            </div>
+
+                            <div class="form-group" style="margin-top: 1rem;">
+                                <label for="expense-desc">Description (Optional)</label>
+                                <input type="text" id="expense-desc" placeholder="What did you buy? (e.g. Burger, Hoodie)">
+                            </div>
+
+                            <button type="submit" class="submit-btn btn-expense" style="margin-top: 1.5rem;">Add Expense</button>
+                        </form>
+
+                        <!-- INCOME FORM -->
+                        <form id="income-form" class="transaction-form">
+                            <!-- Switcher buttons for income mode -->
+                            <div class="income-calc-switcher" style="display: flex; gap: 0.5rem; margin-bottom: 1.25rem;">
+                                <button type="button" class="switch-btn active" id="btn-income-hourly">Hourly</button>
+                                <button type="button" class="switch-btn" id="btn-income-salary">Salary / Fixed</button>
+                            </div>
+                            <input type="hidden" id="income-mode" value="hourly">
+
+                            <!-- Standard Amount Input -->
+                            <div class="form-group amount-group hidden" id="income-amount-group">
+                                <label for="income-amount">Amount ($)</label>
+                                <input type="number" id="income-amount" step="0.01" min="0.01" placeholder="0.00">
+                            </div>
+
+                            <!-- Calculator Inputs -->
+                            <div class="calculator-fields" id="wage-calc-fields">
+                                <div class="form-row" style="display: flex; gap: 1rem;">
+                                    <div class="form-group" style="flex: 1;">
+                                        <label for="income-hours">Hours Worked</label>
+                                        <input type="number" id="income-hours" step="0.1" min="0.1" placeholder="0.0">
+                                    </div>
+                                    <div class="form-group" style="flex: 1;">
+                                        <label for="income-wage">Hourly Wage ($)</label>
+                                        <input type="number" id="income-wage" step="0.01" min="0.01" placeholder="0.00">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Optional Tax Section -->
+                            <div class="tax-control-section" style="margin-top: 1rem;">
+                                <button type="button" class="tax-toggle-btn" id="btn-income-toggle-tax">+ Add Tax</button>
+                                <div class="form-group hidden" id="income-tax-group" style="margin-top: 0.75rem;">
+                                    <label for="income-tax-rate">Tax Rate (%)*</label>
+                                    <input type="number" id="income-tax-rate" min="0" max="100" step="0.1" placeholder="e.g. 15">
+                                </div>
+                            </div>
+
+                            <!-- Calculations Preview Card -->
+                            <div class="calc-preview-card" id="income-preview-card" style="margin-top: 1.25rem; padding: 1rem; background: rgba(255,255,255,0.03); border-radius: var(--border-radius-md); display: flex; flex-direction: column; gap: 0.5rem;">
+                                <div style="display: flex; justify-content: space-between;">
+                                    <span>Gross Total:</span>
+                                    <strong id="income-preview-gross">$0.00</strong>
+                                </div>
+                                <div id="income-preview-tax-row" class="hidden" style="display: flex; justify-content: space-between; color: var(--color-rose);">
+                                    <span>Tax Deduct:</span>
+                                    <strong id="income-preview-tax">-$0.00</strong>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; border-top: 1px solid var(--card-border); padding-top: 0.5rem; margin-top: 0.25rem;">
+                                    <span style="font-weight: 600;">Net Income:</span>
+                                    <strong id="income-preview-net" style="color: var(--color-emerald); font-size: 1.2rem; font-weight: 700;">$0.00</strong>
+                                </div>
+                            </div>
+
+                            <input type="hidden" id="income-category" value="Income">
+
+                            <div class="form-group" style="margin-top: 1rem;">
+                                <label>Date</label>
+                                <div class="custom-datepicker-container" id="income-date-container">
+                                    <div class="custom-datepicker-trigger" id="income-date-trigger">
+                                        <span class="selected-date">Select Date...</span>
+                                        <span class="calendar-icon">
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                                                <line x1="16" y1="2" x2="16" y2="6"/>
+                                                <line x1="8" y1="2" x2="8" y2="6"/>
+                                                <line x1="3" y1="10" x2="21" y2="10"/>
+                                            </svg>
+                                        </span>
+                                    </div>
+                                    <div class="custom-datepicker-calendar hidden" id="income-datepicker-calendar"></div>
+                                    <input type="hidden" id="income-date" required>
+                                </div>
+                            </div>
+
+                            <div class="form-group" style="margin-top: 1rem;">
+                                <label for="income-desc">Description (Optional)</label>
+                                <input type="text" id="income-desc" placeholder="Source of income (e.g. Grocery Shift, Allowance)">
+                            </div>
+
+                            <button type="submit" class="submit-btn btn-income" style="margin-top: 1.5rem;">Add Income</button>
+                        </form>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- TAB: AI Quick Log -->
+            <section id="ai-log" class="tab-content">
+                <div class="content-header">
+                    <h2>AI Quick Log</h2>
+                    <p class="subtitle">Type naturally to instantly record transactions</p>
+                </div>
+
+                <div class="log-grid">
+                    <!-- Input Section -->
+                    <div class="card glass form-card">
+                        <h3>Tell the AI what happened</h3>
+                        <p class="card-desc" style="margin-bottom: 1.25rem; font-size: 0.9rem; color: var(--text-muted);">
+                            Describe your transaction in plain English. The AI will extract the amount, description, category, date, and any hourly income calculations.
+                        </p>
+                        
+                        <div class="form-group">
+                            <label for="ai-prompt-input">Your Description</label>
+                            <textarea id="ai-prompt-input" rows="4" placeholder="e.g., spent $15.50 on pizza with friends today&#10;or: worked 5 hours at my $20/hr tutoring job yesterday" required></textarea>
+                        </div>
+                        
+                        <button type="button" class="submit-btn btn-ai" id="btn-ai-process" style="margin-top: 1.25rem;">
+                            <span class="btn-text">Process Transaction</span>
+                            <span class="btn-spinner hidden"></span>
+                        </button>
+                    </div>
+
+                    <!-- AI Parsing Results Preview -->
+                    <div class="card glass form-card hidden" id="ai-result-card">
+                        <h3>Parsed Transaction Preview</h3>
+                        <p class="card-desc" style="margin-bottom: 1.25rem; font-size: 0.9rem; color: var(--text-muted);">
+                            Review and tweak the extracted details before saving to your log.
+                        </p>
+
+                        <form id="ai-preview-form">
+                            <!-- Type Switcher -->
+                            <div class="form-group">
+                                <label>Transaction Type</label>
+                                <div class="form-switcher preview-switcher" style="margin-bottom: 1rem;">
+                                    <button type="button" class="switch-btn active" id="btn-ai-preview-expense">Expense</button>
+                                    <button type="button" class="switch-btn" id="btn-ai-preview-income">Income</button>
+                                </div>
+                                <input type="hidden" id="ai-preview-type" value="expense">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="ai-preview-amount">Amount ($)</label>
+                                <input type="number" id="ai-preview-amount" step="0.01" min="0.01" required>
+                            </div>
+
+                            <!-- Category Selection -->
+                            <div class="form-group" style="margin-top: 1rem;">
+                                <label>Category</label>
+                                <div class="custom-select-container" id="ai-preview-category-container">
+                                    <div class="custom-select-trigger" id="ai-preview-category-trigger">
+                                        <span class="selected-val">Select Category...</span>
+                                        <span class="arrow">▼</span>
+                                    </div>
+                                    <div class="custom-select-options hidden" id="ai-preview-category-options-dropdown">
+                                        <input type="text" class="custom-select-search" id="ai-preview-category-search" placeholder="Search categories..." autocomplete="off">
+                                        <div class="options-list" id="ai-preview-category-options-list">
+                                            <!-- Injected via Javascript -->
+                                        </div>
+                                    </div>
+                                    <input type="hidden" id="ai-preview-category" required>
+                                </div>
+                            </div>
+
+                            <!-- Date Picker -->
+                            <div class="form-group" style="margin-top: 1rem;">
+                                <label>Date</label>
+                                <div class="custom-datepicker-container" id="ai-preview-date-container">
+                                    <div class="custom-datepicker-trigger" id="ai-preview-date-trigger">
+                                        <span class="selected-date">Select Date...</span>
+                                        <span class="calendar-icon">
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                                                <line x1="16" y1="2" x2="16" y2="6"/>
+                                                <line x1="8" y1="2" x2="8" y2="6"/>
+                                                <line x1="3" y1="10" x2="21" y2="10"/>
+                                            </svg>
+                                        </span>
+                                    </div>
+                                    <div class="custom-datepicker-calendar hidden" id="ai-preview-datepicker-calendar"></div>
+                                    <input type="hidden" id="ai-preview-date" required>
+                                </div>
+                            </div>
+
+                            <div class="form-group" style="margin-top: 1rem;">
+                                <label for="ai-preview-desc">Description</label>
+                                <input type="text" id="ai-preview-desc" required>
+                            </div>
+
+                            <!-- Hourly Fields Container (Only for income when relevant) -->
+                            <div class="calculator-fields hidden" id="ai-preview-hourly-fields" style="margin-top: 1rem;">
+                                <div class="form-row" style="display: flex; gap: 1rem;">
+                                    <div class="form-group" style="flex: 1;">
+                                        <label for="ai-preview-hours">Hours Worked</label>
+                                        <input type="number" id="ai-preview-hours" step="0.1" min="0.1">
+                                    </div>
+                                    <div class="form-group" style="flex: 1;">
+                                        <label for="ai-preview-wage">Hourly Wage ($)</label>
+                                        <input type="number" id="ai-preview-wage" step="0.01" min="0.01">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Optional Tax (for income) -->
+                            <div class="tax-control-section hidden" id="ai-preview-tax-section" style="margin-top: 1rem;">
+                                <div class="form-group" style="margin-top: 0.75rem;">
+                                    <label for="ai-preview-tax-rate">Tax Rate (%)</label>
+                                    <input type="number" id="ai-preview-tax-rate" min="0" max="100" step="0.1">
+                                </div>
+                                <input type="hidden" id="ai-preview-gross-amount">
+                            </div>
+
+                            <div class="modal-actions" style="margin-top: 1.5rem;">
+                                <button type="button" class="cancel-btn" id="btn-ai-clear">Clear</button>
+                                <button type="submit" class="submit-btn btn-save" style="background: var(--color-emerald); color: white;" id="btn-ai-save">Save Transaction</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 3: History -->
+            <section id="history" class="tab-content">
+                <div class="content-header">
+                    <h2>Full History</h2>
+                    <p class="subtitle">Complete log of your budget transactions</p>
+                </div>
+
+                <div class="card glass history-filter-card">
+                    <div class="filter-row">
+                        <div class="filter-group search">
+                            <input type="text" id="history-search" placeholder="Search description...">
+                        </div>
+                        
+                        <div class="filter-group select">
+                            <label for="history-filter-type">Type</label>
+                            <select id="history-filter-type">
+                                <option value="all">All Types</option>
+                                <option value="income">Income Only</option>
+                                <option value="expense">Expenses Only</option>
+                            </select>
+                        </div>
+
+                        <div class="filter-group select">
+                            <label for="history-filter-time">Timeframe</label>
+                            <select id="history-filter-time">
+                                <option value="all">All Time</option>
+                                <option value="month">This Month</option>
+                                <option value="week">This Week</option>
+                                <option value="day">Today</option>
+                            </select>
+                        </div>
+
+                        <div class="filter-group datepicker-filter-group" style="min-width: 160px;">
+                            <label>Filter by Date</label>
+                            <div class="custom-datepicker-container" id="history-date-container">
+                                <div class="custom-datepicker-trigger" id="history-date-trigger">
+                                    <span class="selected-date">All Dates</span>
+                                    <span class="calendar-icon">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                                            <line x1="16" y1="2" x2="16" y2="6"/>
+                                            <line x1="8" y1="2" x2="8" y2="6"/>
+                                            <line x1="3" y1="10" x2="21" y2="10"/>
+                                        </svg>
+                                    </span>
+                                </div>
+                                <div class="custom-datepicker-calendar hidden" id="history-datepicker-calendar"></div>
+                                <input type="hidden" id="history-date-filter" value="">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card glass history-list-card">
+                    <div class="table-responsive">
+                        <table class="transaction-table full-table">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Type</th>
+                                    <th>Description</th>
+                                    <th>Category</th>
+                                    <th>Amount</th>
+                                    <th>Details</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="history-transactions-tbody">
+                                <!-- Injected via Javascript -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 4: Categories List -->
+            <section id="categories-tab" class="tab-content">
+                <div class="content-header">
+                    <h2>Category Settings</h2>
+                    <p class="subtitle">Manage and inspect your categories</p>
+                </div>
+
+                <div class="category-settings-container">
+                    <!-- Category Creator Card -->
+                    <div class="card glass category-card">
+                        <h3>Create Custom Category</h3>
+                        <p class="card-desc">Need a new tag for tracking? Add it here instantly.</p>
+                        
+                        <form id="custom-category-form">
+                            <div class="form-group">
+                                <label for="new-cat-name">Category Name</label>
+                                <input type="text" id="new-cat-name" placeholder="e.g. Gaming, Gym, Gifts" required>
+                            </div>
+
+                            <div class="form-group" style="margin-top: 1rem;">
+                                <label for="new-cat-color">Color Accent</label>
+                                <input type="color" id="new-cat-color" value="#748ffc" style="height: 42px; padding: 2px;">
+                            </div>
+
+                            <button type="submit" class="submit-btn btn-category" style="margin-top: 1.5rem;">Create Category</button>
+                        </form>
+                    </div>
+
+                    <div class="category-grid" id="category-settings-grid">
+                        <!-- Categories will be rendered here dynamically as visual cards -->
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Edit Transaction Modal -->
+    <div id="edit-transaction-modal" class="modal-overlay">
+        <div class="modal-content glass">
+            <div class="modal-header">
+                <h2>Edit Transaction</h2>
+                <button type="button" class="close-modal-btn" id="btn-close-edit-modal">&times;</button>
+            </div>
+            <form id="edit-transaction-form">
+                <input type="hidden" id="edit-t-id">
+                <input type="hidden" id="edit-t-type" value="expense">
+                
+                <div class="form-group">
+                    <label>Transaction Type</label>
+                    <div class="form-switcher modal-switcher">
+                        <button type="button" class="switch-btn active" id="modal-btn-switch-expense">Expense</button>
+                        <button type="button" class="switch-btn" id="modal-btn-switch-income">Income</button>
+                    </div>
+                </div>
+
+                <!-- Switcher buttons for edit income mode -->
+                <div class="income-calc-switcher modal-switcher hidden" id="edit-income-switcher" style="display: flex; gap: 0.5rem; margin-bottom: 1.25rem;">
+                    <button type="button" class="switch-btn active" id="edit-btn-income-hourly">Hourly</button>
+                    <button type="button" class="switch-btn" id="edit-btn-income-salary">Salary / Fixed</button>
+                </div>
+                <input type="hidden" id="edit-income-mode" value="hourly">
+
+                <!-- Standard Amount Input -->
+                <div class="form-group" id="edit-amount-group">
+                    <label for="edit-amount">Amount ($)</label>
+                    <input type="number" id="edit-amount" step="0.01" min="0.01" placeholder="0.00" required>
+                </div>
+
+                <!-- Calculator fields (shown only for income if checkmarked) -->
+                <div class="calculator-fields hidden" id="edit-wage-calc-fields">
+                    <div class="form-row" style="display: flex; gap: 1rem;">
+                        <div class="form-group" style="flex: 1;">
+                            <label for="edit-hours">Hours Worked</label>
+                            <input type="number" id="edit-hours" step="0.1" min="0.1" placeholder="0.0">
+                        </div>
+                        <div class="form-group" style="flex: 1;">
+                            <label for="edit-wage">Hourly Wage ($)</label>
+                            <input type="number" id="edit-wage" step="0.01" min="0.01" placeholder="0.00">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Optional Tax Section (For Income) -->
+                <div class="tax-control-section hidden" id="edit-tax-section" style="margin-top: 1rem;">
+                    <button type="button" class="tax-toggle-btn" id="edit-btn-toggle-tax">+ Add Tax</button>
+                    <div class="form-group hidden" id="edit-tax-group" style="margin-top: 0.75rem;">
+                        <label for="edit-tax-rate">Tax Rate (%)*</label>
+                        <input type="number" id="edit-tax-rate" min="0" max="100" step="0.1" placeholder="e.g. 15">
+                    </div>
+                </div>
+
+                <!-- Calculations Preview Card (For Income) -->
+                <div class="calc-preview-card hidden" id="edit-income-preview-card" style="margin-top: 1.25rem; padding: 1rem; background: rgba(255,255,255,0.03); border-radius: var(--border-radius-md); display: flex; flex-direction: column; gap: 0.5rem;">
+                    <div style="display: flex; justify-content: space-between;">
+                        <span>Gross Total:</span>
+                        <strong id="edit-preview-gross">$0.00</strong>
+                    </div>
+                    <div id="edit-preview-tax-row" class="hidden" style="display: flex; justify-content: space-between; color: var(--color-rose);">
+                        <span>Tax Deduct:</span>
+                        <strong id="edit-preview-tax">-$0.00</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; border-top: 1px solid var(--card-border); padding-top: 0.5rem; margin-top: 0.25rem;">
+                        <span style="font-weight: 600;">Net Income:</span>
+                        <strong id="edit-preview-net" style="color: var(--color-emerald); font-size: 1.2rem; font-weight: 700;">$0.00</strong>
+                    </div>
+                </div>
+
+                <div class="form-group" id="edit-category-group" style="margin-top: 1rem;">
+                    <label>Category</label>
+                    <div class="custom-select-container" id="edit-category-container">
+                        <div class="custom-select-trigger" id="edit-category-trigger">
+                            <span class="selected-val">Select Category...</span>
+                            <span class="arrow">▼</span>
+                        </div>
+                        <div class="custom-select-options hidden" id="edit-category-options-dropdown">
+                            <input type="text" class="custom-select-search" id="edit-category-search" placeholder="Search categories..." autocomplete="off">
+                            <div class="options-list" id="edit-category-options-list">
+                                <!-- Injected via Javascript -->
+                            </div>
+                        </div>
+                        <input type="hidden" id="edit-category" required>
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-top: 1rem;">
+                    <label>Date</label>
+                    <div class="custom-datepicker-container" id="edit-date-container">
+                        <div class="custom-datepicker-trigger" id="edit-date-trigger">
+                            <span class="selected-date">Select Date...</span>
+                            <span class="calendar-icon">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                                    <line x1="16" y1="2" x2="16" y2="6"/>
+                                    <line x1="8" y1="2" x2="8" y2="6"/>
+                                    <line x1="3" y1="10" x2="21" y2="10"/>
+                                </svg>
+                            </span>
+                        </div>
+                        <div class="custom-datepicker-calendar hidden" id="edit-datepicker-calendar"></div>
+                        <input type="hidden" id="edit-date" required>
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-top: 1rem;">
+                    <label for="edit-desc">Description (Optional)</label>
+                    <input type="text" id="edit-desc" placeholder="What was this transaction?">
+                </div>
+
+                <div class="modal-actions" style="margin-top: 1.5rem;">
+                    <button type="button" class="cancel-btn" id="btn-cancel-edit">Cancel</button>
+                    <button type="submit" class="submit-btn btn-save" style="background: var(--color-indigo); color: white;" id="btn-save-transaction">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Edit Category Modal -->
+    <div id="edit-category-modal" class="modal-overlay">
+        <div class="modal-content glass">
+            <div class="modal-header">
+                <h2>Edit Category</h2>
+                <button type="button" class="close-modal-btn" id="btn-close-cat-modal">&times;</button>
+            </div>
+            <form id="edit-category-form">
+                <input type="hidden" id="edit-c-id">
+                
+                <div class="form-group">
+                    <label for="edit-cat-name">Category Name</label>
+                    <input type="text" id="edit-cat-name" placeholder="e.g. Gaming" required>
+                </div>
+
+                <div class="form-group" style="margin-top: 1rem;">
+                    <label for="edit-cat-color">Color Accent</label>
+                    <input type="color" id="edit-cat-color" value="#748ffc" style="height: 42px; padding: 2px;">
+                </div>
+
+                <div class="modal-actions" style="margin-top: 1.5rem;">
+                    <button type="button" class="cancel-btn" id="btn-cancel-cat-edit">Cancel</button>
+                    <button type="submit" class="submit-btn btn-save" style="background: var(--color-indigo); color: white;" id="btn-save-category">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Category Transactions Modal -->
+    <div id="category-transactions-modal" class="modal-overlay">
+        <div class="modal-content glass modal-large">
+            <div class="modal-header">
+                <h2 id="cat-transactions-modal-title">Transactions in Category</h2>
+                <button type="button" class="close-modal-btn" id="btn-close-cat-transactions-modal">&times;</button>
+            </div>
+            <div class="table-responsive" style="margin-top: 1rem; max-height: 400px; overflow-y: auto;">
+                <table class="transaction-table">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Type</th>
+                            <th>Description</th>
+                            <th>Amount</th>
+                            <th>Details</th>
+                        </tr>
+                    </thead>
+                    <tbody id="cat-transactions-tbody">
+                        <!-- Injected dynamically via Javascript -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification Toast -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- Javascript -->
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
