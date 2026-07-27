@@ -1,4 +1,4 @@
-# Trackify 📊
+# Trackify 
 
 **Trackify** is a smart, interactive Student Budget Tracker designed to help students easily manage their income, expenses, and savings. Built with a Flask backend, SQLite database, and an intuitive, modern frontend, Trackify features **Gemini AI Integration** to automatically parse transactions from natural language.
 
