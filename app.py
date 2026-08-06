@@ -71,7 +71,7 @@ def get_transactions():
 def add_transaction():
     data = request.get_json() or {}
     t_type = data.get('type') # 'income' or 'expense'
-    description = data.get('description', '').strip()
+    description = data.get('description', '').strip()// testing comment
     category_name = data.get('category_name', 'Miscellaneous').strip()
     date = data.get('date', '')
     
