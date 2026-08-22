@@ -191,6 +191,9 @@ function setupAuthEventListeners() {
     // Only attach once
     if (elements.authForm.dataset.initialized) return;
     
+    const passwordInput = document.getElementById('auth-password');
+    const passwordToggleBtn = document.getElementById('btn-password-toggle');
+    
     // Toggle login/register mode
     elements.btnAuthToggle.addEventListener('click', (e) => {
         e.preventDefault();
@@ -210,7 +213,46 @@ function setupAuthEventListeners() {
             elements.btnAuthToggle.textContent = 'Register here';
         }
         elements.authForm.reset();
+        
+        // Reset password visibility
+        if (passwordInput && passwordToggleBtn) {
+            passwordInput.type = 'password';
+            const eyeClosed = passwordToggleBtn.querySelector('.eye-icon-closed');
+            const eyeOpen = passwordToggleBtn.querySelector('.eye-icon-open');
+            if (eyeClosed) eyeClosed.classList.remove('hidden');
+            if (eyeOpen) eyeOpen.classList.add('hidden');
+        }
     });
+    
+    // Password visibility toggle (click and hold)
+    if (passwordInput && passwordToggleBtn) {
+        const eyeClosed = passwordToggleBtn.querySelector('.eye-icon-closed');
+        const eyeOpen = passwordToggleBtn.querySelector('.eye-icon-open');
+        
+        const showPassword = (e) => {
+            e.preventDefault();
+            passwordInput.type = 'text';
+            if (eyeClosed) eyeClosed.classList.add('hidden');
+            if (eyeOpen) eyeOpen.classList.remove('hidden');
+        };
+        
+        const hidePassword = (e) => {
+            e.preventDefault();
+            passwordInput.type = 'password';
+            if (eyeClosed) eyeClosed.classList.remove('hidden');
+            if (eyeOpen) eyeOpen.classList.add('hidden');
+        };
+        
+        // Mouse events
+        passwordToggleBtn.addEventListener('mousedown', showPassword);
+        passwordToggleBtn.addEventListener('mouseup', hidePassword);
+        passwordToggleBtn.addEventListener('mouseleave', hidePassword);
+        
+        // Touch events for mobile
+        passwordToggleBtn.addEventListener('touchstart', showPassword);
+        passwordToggleBtn.addEventListener('touchend', hidePassword);
+        passwordToggleBtn.addEventListener('touchcancel', hidePassword);
+    }
     
     // Auth Form submission
     elements.authForm.addEventListener('submit', async (e) => {
