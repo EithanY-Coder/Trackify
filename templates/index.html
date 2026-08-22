@@ -11,9 +11,45 @@
     <!-- Main Stylesheet -->
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <link rel="icon" type="image/png" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💸</text></svg>">
+    <!-- Supabase JS Client -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
-    <div class="app-container">
+    <!-- AUTH CONTAINER (Login & Register) -->
+    <div id="auth-container" class="auth-container">
+        <div class="auth-card glass">
+            <div class="brand-auth">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="brand-icon">
+                    <path d="M3 3v18h18"/>
+                    <path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"/>
+                </svg>
+                <h1>Trackify</h1>
+            </div>
+            <h2 id="auth-title">Log in to your account</h2>
+            <p id="auth-subtitle" class="auth-subtitle">Enter your email and password below</p>
+            
+            <form id="auth-form">
+                <div class="form-group">
+                    <label for="auth-email">Email Address</label>
+                    <input type="email" id="auth-email" placeholder="e.g. teen@trackify.com" required autocomplete="username">
+                </div>
+                
+                <div class="form-group" style="margin-top: 1rem;">
+                    <label for="auth-password">Password</label>
+                    <input type="password" id="auth-password" placeholder="••••••••" required autocomplete="current-password">
+                </div>
+                
+                <button type="submit" class="submit-btn" id="btn-auth-submit" style="margin-top: 1.5rem; background: var(--color-indigo); color: white;">Log In</button>
+            </form>
+            
+            <div class="auth-toggle">
+                <span id="auth-toggle-text">Don't have an account?</span>
+                <button id="btn-auth-toggle">Register here</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="app-container hidden" id="app-container">
         <!-- Sidebar Navigation -->
         <aside class="sidebar">
             <div class="brand">
@@ -66,12 +102,20 @@
                     </svg>
                     Categories
                 </button>
+                <button class="nav-btn logout-btn" id="sidebar-logout-btn" style="margin-top: auto; color: var(--color-rose); border: 1px solid rgba(239, 68, 68, 0.2); border-radius: var(--border-radius-md);">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                        <polyline points="16 17 21 12 16 7"/>
+                        <line x1="21" y1="12" x2="9" y2="12"/>
+                    </svg>
+                    Log Out
+                </button>
             </nav>
 
             <div class="quick-summary-card">
                 <h3>Net Balance</h3>
                 <div class="balance-amount" id="sidebar-net-balance">$0.00</div>
-                <div class="balance-sub" id="sidebar-status-msg">Welcome, Budgeter!</div>
+                <div class="balance-sub" id="sidebar-user-welcome">Welcome!</div>
             </div>
         </aside>
 

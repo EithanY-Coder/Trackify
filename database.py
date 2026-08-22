@@ -14,45 +14,45 @@ def init_db():
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    # Create categories table
+    # Create categories table (user_id can be NULL for default categories, or TEXT for Supabase UUIDs)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS categories (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT UNIQUE NOT NULL,
+            user_id TEXT,
+            name TEXT NOT NULL,
             icon TEXT NOT NULL,
             color TEXT NOT NULL
         )
     ''')
     
-    # Create transactions table
+    # Create a unique index for categories per user
+    cursor.execute('''
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_categories_user_name 
+        ON categories(COALESCE(user_id, 'global'), name);
+    ''')
+    
+    # Create transactions table linked to user_id (TEXT for Supabase UUIDs)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS transactions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT NOT NULL,
             type TEXT NOT NULL, -- 'income' or 'expense'
             amount REAL NOT NULL,
             description TEXT NOT NULL,
-            category_name TEXT NOT NULL, -- Denormalized for convenience and fallback if category deleted, or references name
+            category_name TEXT NOT NULL,
             date TEXT NOT NULL, -- YYYY-MM-DD
             hours_worked REAL,
             hourly_wage REAL,
             tax_rate REAL,
-            gross_amount REAL,
-            FOREIGN KEY (category_name) REFERENCES categories (name) ON DELETE RESTRICT
+            gross_amount REAL
         )
     ''')
     
-    # Try adding tax_rate and gross_amount columns if they don't exist
-    try:
-        cursor.execute('ALTER TABLE transactions ADD COLUMN tax_rate REAL')
-    except sqlite3.OperationalError:
-        pass
-    try:
-        cursor.execute('ALTER TABLE transactions ADD COLUMN gross_amount REAL')
-    except sqlite3.OperationalError:
-        pass
+    # Create indexes for performance
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_transactions_user_id ON transactions(user_id);')
     
     # Pre-seed categories if empty
-    cursor.execute('SELECT COUNT(*) FROM categories')
+    cursor.execute('SELECT COUNT(*) FROM categories WHERE user_id IS NULL')
     if cursor.fetchone()[0] == 0:
         default_categories = [
             ("Fast Food", "•", "#FF6B6B"),
@@ -64,7 +64,7 @@ def init_db():
             ("Miscellaneous", "•", "#ADB5BD")
         ]
         cursor.executemany(
-            'INSERT INTO categories (name, icon, color) VALUES (?, ?, ?)',
+            'INSERT INTO categories (name, icon, color, user_id) VALUES (?, ?, ?, NULL)',
             default_categories
         )
     
