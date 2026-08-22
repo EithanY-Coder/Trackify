@@ -6,11 +6,29 @@ const state = {
     transactions: [],
     categories: [],
     activeTab: 'dashboard',
-    chartFilter: 'all' // 'all', 'month', 'week'
+    chartFilter: 'all', // 'all', 'month', 'week'
+    currentUser: null,
+    authMode: 'login' // 'login' or 'register'
 };
 
 // DOM Elements
 const elements = {
+    // Auth Containers
+    authContainer: document.getElementById('auth-container'),
+    appContainer: document.getElementById('app-container'),
+    
+    // Auth Form Elements
+    authForm: document.getElementById('auth-form'),
+    authTitle: document.getElementById('auth-title'),
+    authSubtitle: document.getElementById('auth-subtitle'),
+    authEmailInput: document.getElementById('auth-email'),
+    authPasswordInput: document.getElementById('auth-password'),
+    btnAuthSubmit: document.getElementById('btn-auth-submit'),
+    btnAuthToggle: document.getElementById('btn-auth-toggle'),
+    authToggleText: document.getElementById('auth-toggle-text'),
+    sidebarLogoutBtn: document.getElementById('sidebar-logout-btn'),
+    sidebarUserWelcome: document.getElementById('sidebar-user-welcome'),
+
     navButtons: document.querySelectorAll('.nav-btn'),
     tabContents: document.querySelectorAll('.tab-content'),
     sidebarNetBalance: document.getElementById('sidebar-net-balance'),
@@ -100,8 +118,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initialize AI Logger
     initAiLogger();
     
-    // Initial data fetch
-    fetchData();
+    // Check authentication and initialize app data
+    initAuth();
 });
 
 // ==========================================================================
@@ -139,6 +157,188 @@ function showToast(message, type = 'success') {
 }
 
 // ==========================================================================
+// AUTHENTICATION LOGIC & EVENT HANDLERS (SUPABASE AUTH)
+// ==========================================================================
+
+// Initialize Supabase Client
+const SUPABASE_URL = "https://yikvwuvigvocakylxsvb.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_MMFH_VKRbg6wrV700meNmg_flCb8ktU";
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+async function initAuth() {
+    try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        
+        if (session) {
+            state.currentUser = session.user.email;
+            elements.sidebarUserWelcome.textContent = `Logged in as ${state.currentUser}`;
+            elements.authContainer.classList.add('hidden');
+            elements.appContainer.classList.remove('hidden');
+            fetchData();
+        } else {
+            state.currentUser = null;
+            elements.appContainer.classList.add('hidden');
+            elements.authContainer.classList.remove('hidden');
+            setupAuthEventListeners();
+        }
+    } catch (err) {
+        console.error('Failed to check auth status:', err);
+        showToast('Connection to server failed. Please try again.', 'error');
+    }
+}
+
+function setupAuthEventListeners() {
+    // Only attach once
+    if (elements.authForm.dataset.initialized) return;
+    
+    // Toggle login/register mode
+    elements.btnAuthToggle.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (state.authMode === 'login') {
+            state.authMode = 'register';
+            elements.authTitle.textContent = 'Create your account';
+            elements.authSubtitle.textContent = 'Enter an email and password to sign up';
+            elements.btnAuthSubmit.textContent = 'Register';
+            elements.authToggleText.textContent = 'Already have an account?';
+            elements.btnAuthToggle.textContent = 'Log in here';
+        } else {
+            state.authMode = 'login';
+            elements.authTitle.textContent = 'Log in to your account';
+            elements.authSubtitle.textContent = 'Enter your email and password below';
+            elements.btnAuthSubmit.textContent = 'Log In';
+            elements.authToggleText.textContent = "Don't have an account?";
+            elements.btnAuthToggle.textContent = 'Register here';
+        }
+        elements.authForm.reset();
+    });
+    
+    // Auth Form submission
+    elements.authForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const email = elements.authEmailInput.value.trim();
+        const password = elements.authPasswordInput.value;
+        
+        if (!email || !password) {
+            showToast('Please fill in all fields', 'error');
+            return;
+        }
+        
+        if (state.authMode === 'register') {
+            const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]).{8,}$/;
+            if (!passwordRegex.test(password)) {
+                showToast('Password must be at least 8 characters and contain uppercase, lowercase, a number, and a special character.', 'error');
+                return;
+            }
+        }
+        
+        try {
+            elements.btnAuthSubmit.disabled = true;
+            elements.btnAuthSubmit.textContent = 'Processing...';
+            
+            if (state.authMode === 'login') {
+                const { data, error } = await supabaseClient.auth.signInWithPassword({
+                    email: email,
+                    password: password
+                });
+                
+                if (error) {
+                    showToast(error.message || 'Login failed', 'error');
+                } else {
+                    showToast('Welcome back!', 'success');
+                    elements.authForm.reset();
+                    initAuth();
+                }
+            } else {
+                const { data, error } = await supabaseClient.auth.signUp({
+                    email: email,
+                    password: password
+                });
+                
+                if (error) {
+                    showToast(error.message || 'Registration failed', 'error');
+                } else {
+                    if (data.user && data.session === null) {
+                        showToast('Check your email for the confirmation link!', 'info');
+                    } else {
+                        showToast('Registration successful!', 'success');
+                    }
+                    state.authMode = 'login';
+                    elements.authTitle.textContent = 'Log in to your account';
+                    elements.authSubtitle.textContent = 'Enter your email and password below';
+                    elements.btnAuthSubmit.textContent = 'Log In';
+                    elements.authToggleText.textContent = "Don't have an account?";
+                    elements.btnAuthToggle.textContent = 'Register here';
+                    elements.authForm.reset();
+                }
+            }
+        } catch (err) {
+            console.error('Auth request error:', err);
+            showToast('Failed to connect to authentication server.', 'error');
+        } finally {
+            elements.btnAuthSubmit.disabled = false;
+            elements.btnAuthSubmit.textContent = state.authMode === 'login' ? 'Log In' : 'Register';
+        }
+    });
+    
+    // Sidebar logout button
+    elements.sidebarLogoutBtn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        try {
+            const { error } = await supabaseClient.auth.signOut();
+            if (!error) {
+                showToast('Logged out successfully', 'success');
+                initAuth();
+            } else {
+                showToast('Failed to log out', 'error');
+            }
+        } catch (err) {
+            console.error('Logout error:', err);
+            showToast('Server connection failed.', 'error');
+        }
+    });
+    
+    elements.authForm.dataset.initialized = "true";
+}
+
+async function handleSessionExpiry() {
+    state.currentUser = null;
+    try {
+        await supabaseClient.auth.signOut();
+    } catch (e) {
+        console.error('Error signing out during expiry:', e);
+    }
+    showToast('Your session has expired. Please log in again.', 'error');
+    elements.appContainer.classList.add('hidden');
+    elements.authContainer.classList.remove('hidden');
+    setupAuthEventListeners();
+}
+
+async function apiCall(url, options = {}) {
+    try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (session) {
+            options.headers = {
+                ...options.headers,
+                'Authorization': `Bearer ${session.access_token}`
+            };
+        }
+        
+        const response = await fetch(url, options);
+        if (response.status === 401) {
+            handleSessionExpiry();
+            throw new Error('Unauthorized');
+        }
+        return response;
+    } catch (err) {
+        if (err.message !== 'Unauthorized') {
+            console.error('API Error:', err);
+        }
+        throw err;
+    }
+}
+
+// ==========================================================================
 // DATA FETCHING & STATE MANAGEMENT
 // ==========================================================================
 async function fetchData() {
@@ -149,12 +349,14 @@ async function fetchData() {
         ]);
     } catch (err) {
         console.error('Error fetching initial data:', err);
-        showToast('Failed to connect to Flask API server. Make sure server is running.', 'error');
+        if (err.message !== 'Unauthorized') {
+            showToast('Failed to connect to Flask API server. Make sure server is running.', 'error');
+        }
     }
 }
 
 async function fetchCategories() {
-    const response = await fetch('/api/categories');
+    const response = await apiCall('/api/categories');
     if (!response.ok) throw new Error('Failed to load categories');
     
     state.categories = await response.json();
@@ -163,7 +365,7 @@ async function fetchCategories() {
 }
 
 async function fetchTransactions() {
-    const response = await fetch('/api/transactions');
+    const response = await apiCall('/api/transactions');
     if (!response.ok) throw new Error('Failed to load transactions');
     
     state.transactions = await response.json();
@@ -574,7 +776,7 @@ function initFormSubmissions() {
         };
         
         try {
-            const response = await fetch('/api/categories', {
+            const response = await apiCall('/api/categories', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data)
@@ -601,7 +803,7 @@ function initFormSubmissions() {
 
 async function saveTransaction(data, formElement) {
     try {
-        const response = await fetch('/api/transactions', {
+        const response = await apiCall('/api/transactions', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data)
@@ -634,7 +836,7 @@ async function deleteTransaction(id) {
     if (!confirm('Are you sure you want to delete this transaction?')) return;
     
     try {
-        const response = await fetch(`/api/transactions/${id}`, {
+        const response = await apiCall(`/api/transactions/${id}`, {
             method: 'DELETE'
         });
         
@@ -1398,7 +1600,7 @@ function initModalEvents() {
         }
         
         try {
-            const response = await fetch(`/api/transactions/${tId}`, {
+            const response = await apiCall(`/api/transactions/${tId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
@@ -1425,7 +1627,7 @@ function initModalEvents() {
         const colorVal = document.getElementById('edit-cat-color').value;
         
         try {
-            const response = await fetch(`/api/categories/${cId}`, {
+            const response = await apiCall(`/api/categories/${cId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name: nameVal, icon: iconVal, color: colorVal })
@@ -1591,7 +1793,7 @@ async function deleteCategory(id) {
     }
     
     try {
-        const response = await fetch(`/api/categories/${id}`, {
+        const response = await apiCall(`/api/categories/${id}`, {
             method: 'DELETE'
         });
         const result = await response.json();
@@ -1968,7 +2170,7 @@ function initAiLogger() {
         resultCard.classList.add('hidden');
 
         try {
-            const response = await fetch('/api/ai/parse-transaction', {
+            const response = await apiCall('/api/ai/parse-transaction', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ prompt })
@@ -2093,7 +2295,7 @@ function initAiLogger() {
         }
 
         try {
-            const response = await fetch('/api/transactions', {
+            const response = await apiCall('/api/transactions', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data)

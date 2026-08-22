@@ -6,21 +6,94 @@ import os
 import datetime
 import requests
 import json
+import jwt
+from dotenv import load_dotenv
+import ssl
+
+# Bypass SSL verification for local development (macOS cert issue)
+ssl._create_default_https_context = ssl._create_unverified_context
+
+# Load environment variables from .env
+load_dotenv()
 
 app = Flask(__name__)
 
 # Initialize database
 database.init_db()
 
+# JWT Verification helper for Supabase tokens using JWKS endpoint (supports ES256, RS256, etc.)
+SUPABASE_URL = os.environ.get('SUPABASE_URL', '').rstrip('/')
+SUPABASE_ANON_KEY = os.environ.get('SUPABASE_ANON_KEY', '')
+JWKS_URL = f"{SUPABASE_URL}/auth/v1/.well-known/jwks.json"
+jwks_headers = {
+    'apikey': SUPABASE_ANON_KEY,
+    'Authorization': f'Bearer {SUPABASE_ANON_KEY}'
+}
+jwks_client = jwt.PyJWKClient(JWKS_URL, headers=jwks_headers)
+
+def get_auth_user():
+    auth_header = request.headers.get('Authorization')
+    if not auth_header or not auth_header.startswith('Bearer '):
+        return None
+    token = auth_header.split(' ', 1)[1]
+    
+    try:
+        header = jwt.get_unverified_header(token)
+        alg = header.get('alg', 'ES256')
+        
+        # Retrieve public signing key dynamically from JWKS
+        signing_key = jwks_client.get_signing_key_from_jwt(token)
+        
+        # Decode and verify
+        payload = jwt.decode(
+            token, 
+            signing_key.key, 
+            algorithms=[alg], 
+            options={"verify_aud": False}
+        )
+        return payload.get('sub')
+    except jwt.ExpiredSignatureError as e:
+        print(f"JWT Expired: {e}")
+        return None
+    except jwt.InvalidTokenError as e:
+        print(f"JWT Invalid: {e}")
+        return None
+    except Exception as e:
+        print(f"JWT Verification failed: {e}")
+        return None
+
 @app.route('/')
 def index():
     return render_template('index.html')
 
+# ----------------- AUTHENTICATION API STATUS -----------------
+
+@app.route('/api/auth/status', methods=['GET'])
+def auth_status():
+    user_id = get_auth_user()
+    if user_id:
+        return jsonify({
+            'authenticated': True,
+            'user': {
+                'id': user_id
+            }
+        })
+    return jsonify({'authenticated': False})
+
+# ----------------- CATEGORIES API -----------------
+
 @app.route('/api/categories', methods=['GET'])
 def get_categories():
+    user_id = get_auth_user()
+    if not user_id:
+        return jsonify({'error': 'Unauthorized. Please log in.'}), 401
+        
     conn = database.get_db_connection()
     try:
-        categories = conn.execute('SELECT * FROM categories ORDER BY name ASC').fetchall()
+        categories = conn.execute(
+            'SELECT * FROM categories WHERE user_id IS NULL OR user_id = ? ORDER BY name ASC',
+            (user_id,)
+        ).fetchall()
         return jsonify([dict(c) for c in categories])
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -29,6 +102,10 @@ def get_categories():
 
 @app.route('/api/categories', methods=['POST'])
 def add_category():
+    user_id = get_auth_user()
+    if not user_id:
+        return jsonify({'error': 'Unauthorized. Please log in.'}), 401
+        
     data = request.get_json() or {}
     name = data.get('name', '').strip()
     icon = data.get('icon', '📦').strip()
@@ -39,14 +116,17 @@ def add_category():
         
     conn = database.get_db_connection()
     try:
-        # Check if already exists
-        exists = conn.execute('SELECT id FROM categories WHERE name = ?', (name,)).fetchone()
+        # Check if already exists for this user or globally
+        exists = conn.execute(
+            'SELECT id FROM categories WHERE (user_id IS NULL OR user_id = ?) AND name = ?',
+            (user_id, name)
+        ).fetchone()
         if exists:
             return jsonify({'error': f'Category "{name}" already exists.'}), 400
             
         cursor = conn.execute(
-            'INSERT INTO categories (name, icon, color) VALUES (?, ?, ?)',
-            (name, icon, color)
+            'INSERT INTO categories (name, icon, color, user_id) VALUES (?, ?, ?, ?)',
+            (name, icon, color, user_id)
         )
         conn.commit()
         new_id = cursor.lastrowid
@@ -56,11 +136,122 @@ def add_category():
     finally:
         conn.close()
 
-@app.route('/api/transactions', methods=['GET'])
-def get_transactions():
+@app.route('/api/categories/<int:c_id>', methods=['PUT'])
+def update_category(c_id):
+    user_id = get_auth_user()
+    if not user_id:
+        return jsonify({'error': 'Unauthorized. Please log in.'}), 401
+        
+    data = request.get_json() or {}
+    name = data.get('name', '').strip()
+    icon = data.get('icon', '📦').strip()
+    color = data.get('color', '#ADB5BD').strip()
+    
+    if not name:
+        return jsonify({'error': 'Category name is required.'}), 400
+        
     conn = database.get_db_connection()
     try:
-        transactions = conn.execute('SELECT * FROM transactions ORDER BY date DESC, id DESC').fetchall()
+        old_cat = conn.execute('SELECT user_id, name FROM categories WHERE id = ?', (c_id,)).fetchone()
+        if not old_cat:
+            return jsonify({'error': 'Category not found.'}), 404
+            
+        if old_cat['user_id'] is None:
+            return jsonify({'error': 'Default categories cannot be modified.'}), 403
+            
+        if old_cat['user_id'] != user_id:
+            return jsonify({'error': 'Unauthorized.'}), 401
+            
+        old_name = old_cat['name']
+        
+        if old_name != name:
+            exists = conn.execute(
+                'SELECT id FROM categories WHERE (user_id IS NULL OR user_id = ?) AND name = ? AND id != ?',
+                (user_id, name, c_id)
+            ).fetchone()
+            if exists:
+                return jsonify({'error': f'Category "{name}" already exists.'}), 400
+        
+        conn.execute("PRAGMA foreign_keys = OFF;")
+        conn.execute('''
+            UPDATE categories
+            SET name = ?, icon = ?, color = ?
+            WHERE id = ? AND user_id = ?
+        ''', (name, icon, color, c_id, user_id))
+        
+        if old_name != name:
+            conn.execute('''
+                UPDATE transactions
+                SET category_name = ?
+                WHERE category_name = ? AND user_id = ?
+            ''', (name, old_name, user_id))
+            
+        conn.commit()
+        return jsonify({'id': c_id, 'name': name, 'icon': icon, 'color': color})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        conn.execute("PRAGMA foreign_keys = ON;")
+        conn.close()
+
+@app.route('/api/categories/<int:c_id>', methods=['DELETE'])
+def delete_category(c_id):
+    user_id = get_auth_user()
+    if not user_id:
+        return jsonify({'error': 'Unauthorized. Please log in.'}), 401
+        
+    conn = database.get_db_connection()
+    try:
+        cat = conn.execute('SELECT user_id, name FROM categories WHERE id = ?', (c_id,)).fetchone()
+        if not cat:
+            return jsonify({'error': 'Category not found.'}), 404
+            
+        if cat['user_id'] is None:
+            return jsonify({'error': 'Default categories cannot be deleted.'}), 403
+            
+        if cat['user_id'] != user_id:
+            return jsonify({'error': 'Unauthorized.'}), 401
+            
+        cat_name = cat['name']
+        if cat_name == 'Miscellaneous':
+            return jsonify({'error': 'The "Miscellaneous" category cannot be deleted.'}), 400
+            
+        misc_exists = conn.execute('SELECT id FROM categories WHERE name = "Miscellaneous" AND user_id IS NULL').fetchone()
+        if not misc_exists:
+            # Recreate global miscellaneous if needed
+            conn.execute('INSERT INTO categories (name, icon, color, user_id) VALUES ("Miscellaneous", "📦", "#ADB5BD", NULL)')
+            
+        conn.execute("PRAGMA foreign_keys = OFF;")
+        conn.execute('''
+            UPDATE transactions
+            SET category_name = "Miscellaneous"
+            WHERE category_name = ? AND user_id = ?
+        ''', (cat_name, user_id))
+        
+        conn.execute('DELETE FROM categories WHERE id = ? AND user_id = ?', (c_id, user_id))
+        conn.commit()
+        
+        return jsonify({'success': True, 'message': f'Category "{cat_name}" deleted. Transactions reassigned to Miscellaneous.'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        conn.execute("PRAGMA foreign_keys = ON;")
+        conn.close()
+
+# ----------------- TRANSACTIONS API -----------------
+
+@app.route('/api/transactions', methods=['GET'])
+def get_transactions():
+    user_id = get_auth_user()
+    if not user_id:
+        return jsonify({'error': 'Unauthorized. Please log in.'}), 401
+        
+    conn = database.get_db_connection()
+    try:
+        transactions = conn.execute(
+            'SELECT * FROM transactions WHERE user_id = ? ORDER BY date DESC, id DESC',
+            (user_id,)
+        ).fetchall()
         return jsonify([dict(t) for t in transactions])
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -69,9 +260,13 @@ def get_transactions():
 
 @app.route('/api/transactions', methods=['POST'])
 def add_transaction():
+    user_id = get_auth_user()
+    if not user_id:
+        return jsonify({'error': 'Unauthorized. Please log in.'}), 401
+        
     data = request.get_json() or {}
     t_type = data.get('type') # 'income' or 'expense'
-    description = data.get('description', '').strip()// testing comment
+    description = data.get('description', '').strip()
     category_name = data.get('category_name', 'Miscellaneous').strip()
     date = data.get('date', '')
     
@@ -129,25 +324,29 @@ def add_transaction():
 
     conn = database.get_db_connection()
     try:
-        cat = conn.execute('SELECT name FROM categories WHERE name = ?', (category_name,)).fetchone()
+        # Check if category exists for this user or globally
+        cat = conn.execute(
+            'SELECT name FROM categories WHERE (user_id IS NULL OR user_id = ?) AND name = ?',
+            (user_id, category_name)
+        ).fetchone()
         if not cat:
             if category_name.lower() == 'income':
                 conn.execute(
-                    'INSERT OR IGNORE INTO categories (name, icon, color) VALUES (?, ?, ?)',
+                    'INSERT OR IGNORE INTO categories (name, icon, color, user_id) VALUES (?, ?, ?, NULL)',
                     ('Income', '💵', '#2B8A3E')
                 )
                 conn.commit()
             else:
                 conn.execute(
-                    'INSERT OR IGNORE INTO categories (name, icon, color) VALUES (?, ?, ?)',
-                    (category_name, category_icon, category_color)
+                    'INSERT OR IGNORE INTO categories (name, icon, color, user_id) VALUES (?, ?, ?, ?)',
+                    (category_name, category_icon, category_color, user_id)
                 )
                 conn.commit()
             
         cursor = conn.execute('''
-            INSERT INTO transactions (type, amount, description, category_name, date, hours_worked, hourly_wage, tax_rate, gross_amount)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (t_type, amount, description, category_name, date, hours_worked, hourly_wage, tax_rate, gross_amount))
+            INSERT INTO transactions (user_id, type, amount, description, category_name, date, hours_worked, hourly_wage, tax_rate, gross_amount)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (user_id, t_type, amount, description, category_name, date, hours_worked, hourly_wage, tax_rate, gross_amount))
         
         conn.commit()
         new_id = cursor.lastrowid
@@ -171,14 +370,18 @@ def add_transaction():
 
 @app.route('/api/transactions/<int:t_id>', methods=['DELETE'])
 def delete_transaction(t_id):
+    user_id = get_auth_user()
+    if not user_id:
+        return jsonify({'error': 'Unauthorized. Please log in.'}), 401
+        
     conn = database.get_db_connection()
     try:
-        # Check if exists
-        exists = conn.execute('SELECT id FROM transactions WHERE id = ?', (t_id,)).fetchone()
+        # Check if exists and belongs to this user
+        exists = conn.execute('SELECT id FROM transactions WHERE id = ? AND user_id = ?', (t_id, user_id)).fetchone()
         if not exists:
             return jsonify({'error': 'Transaction not found.'}), 404
             
-        conn.execute('DELETE FROM transactions WHERE id = ?', (t_id,))
+        conn.execute('DELETE FROM transactions WHERE id = ? AND user_id = ?', (t_id, user_id))
         conn.commit()
         return jsonify({'success': True, 'message': 'Transaction deleted.'})
     except Exception as e:
@@ -188,6 +391,10 @@ def delete_transaction(t_id):
 
 @app.route('/api/transactions/<int:t_id>', methods=['PUT'])
 def update_transaction(t_id):
+    user_id = get_auth_user()
+    if not user_id:
+        return jsonify({'error': 'Unauthorized. Please log in.'}), 401
+        
     data = request.get_json() or {}
     t_type = data.get('type') # 'income' or 'expense'
     description = data.get('description', '').strip()
@@ -243,23 +450,43 @@ def update_transaction(t_id):
     if amount <= 0:
         return jsonify({'error': 'Amount must be greater than zero.'}), 400
         
+    category_icon = data.get('category_icon', '📦').strip()
+    category_color = data.get('category_color', '#ADB5BD').strip()
+
     conn = database.get_db_connection()
     try:
-        exists = conn.execute('SELECT id FROM transactions WHERE id = ?', (t_id,)).fetchone()
+        # Check if transaction exists and belongs to this user
+        exists = conn.execute('SELECT id FROM transactions WHERE id = ? AND user_id = ?', (t_id, user_id)).fetchone()
         if not exists:
             return jsonify({'error': 'Transaction not found.'}), 404
             
-        cat = conn.execute('SELECT name FROM categories WHERE name = ?', (category_name,)).fetchone()
+        # Check if category exists for this user or globally
+        cat = conn.execute(
+            'SELECT name FROM categories WHERE (user_id IS NULL OR user_id = ?) AND name = ?',
+            (user_id, category_name)
+        ).fetchone()
         if not cat:
-            category_name = 'Miscellaneous'
-            
+            if category_name.lower() == 'income':
+                conn.execute(
+                    'INSERT OR IGNORE INTO categories (name, icon, color, user_id) VALUES (?, ?, ?, NULL)',
+                    ('Income', '💵', '#2B8A3E')
+                )
+                conn.commit()
+            else:
+                conn.execute(
+                    'INSERT OR IGNORE INTO categories (name, icon, color, user_id) VALUES (?, ?, ?, ?)',
+                    (category_name, category_icon, category_color, user_id)
+                )
+                conn.commit()
+                
         conn.execute('''
             UPDATE transactions
-            SET type = ?, amount = ?, description = ?, category_name = ?, date = ?, hours_worked = ?, hourly_wage = ?, tax_rate = ?, gross_amount = ?
-            WHERE id = ?
-        ''', (t_type, amount, description, category_name, date, hours_worked, hourly_wage, tax_rate, gross_amount, t_id))
-        conn.commit()
+            SET type = ?, amount = ?, description = ?, category_name = ?, date = ?, 
+                hours_worked = ?, hourly_wage = ?, tax_rate = ?, gross_amount = ?
+            WHERE id = ? AND user_id = ?
+        ''', (t_type, amount, description, category_name, date, hours_worked, hourly_wage, tax_rate, gross_amount, t_id, user_id))
         
+        conn.commit()
         return jsonify({
             'id': t_id,
             'type': t_type,
@@ -277,103 +504,22 @@ def update_transaction(t_id):
     finally:
         conn.close()
 
-@app.route('/api/categories/<int:c_id>', methods=['PUT'])
-def update_category(c_id):
-    data = request.get_json() or {}
-    name = data.get('name', '').strip()
-    icon = data.get('icon', '📦').strip()
-    color = data.get('color', '#ADB5BD').strip()
-    
-    if not name:
-        return jsonify({'error': 'Category name is required.'}), 400
-        
-    conn = database.get_db_connection()
-    try:
-        old_cat = conn.execute('SELECT name FROM categories WHERE id = ?', (c_id,)).fetchone()
-        if not old_cat:
-            return jsonify({'error': 'Category not found.'}), 404
-        old_name = old_cat['name']
-        
-        if old_name != name:
-            exists = conn.execute('SELECT id FROM categories WHERE name = ? AND id != ?', (name, c_id)).fetchone()
-            if exists:
-                return jsonify({'error': f'Category "{name}" already exists.'}), 400
-        
-        conn.execute("PRAGMA foreign_keys = OFF;")
-        conn.execute('''
-            UPDATE categories
-            SET name = ?, icon = ?, color = ?
-            WHERE id = ?
-        ''', (name, icon, color, c_id))
-        
-        if old_name != name:
-            conn.execute('''
-                UPDATE transactions
-                SET category_name = ?
-                WHERE category_name = ?
-            ''', (name, old_name))
-            
-        conn.commit()
-        return jsonify({'id': c_id, 'name': name, 'icon': icon, 'color': color})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-    finally:
-        conn.execute("PRAGMA foreign_keys = ON;")
-        conn.close()
-
-@app.route('/api/categories/<int:c_id>', methods=['DELETE'])
-def delete_category(c_id):
-    conn = database.get_db_connection()
-    try:
-        cat = conn.execute('SELECT name FROM categories WHERE id = ?', (c_id,)).fetchone()
-        if not cat:
-            return jsonify({'error': 'Category not found.'}), 404
-            
-        cat_name = cat['name']
-        if cat_name == 'Miscellaneous':
-            return jsonify({'error': 'The "Miscellaneous" category cannot be deleted.'}), 400
-            
-        misc_exists = conn.execute('SELECT id FROM categories WHERE name = "Miscellaneous"').fetchone()
-        if not misc_exists:
-            conn.execute('INSERT INTO categories (name, icon, color) VALUES ("Miscellaneous", "📦", "#ADB5BD")')
-            
-        conn.execute("PRAGMA foreign_keys = OFF;")
-        conn.execute('''
-            UPDATE transactions
-            SET category_name = "Miscellaneous"
-            WHERE category_name = ?
-        ''', (cat_name,))
-        
-        conn.execute('DELETE FROM categories WHERE id = ?', (c_id,))
-        conn.commit()
-        
-        return jsonify({'success': True, 'message': f'Category "{cat_name}" deleted. Transactions reassigned to Miscellaneous.'})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-    finally:
-        conn.execute("PRAGMA foreign_keys = ON;")
-        conn.close()
+# ----------------- AI PARSING API -----------------
 
 @app.route('/api/ai/parse-transaction', methods=['POST'])
 def parse_transaction_ai():
+    user_id = get_auth_user()
+    if not user_id:
+        return jsonify({'error': 'Unauthorized. Please log in.'}), 401
+        
     # Load API Key
     api_key = os.environ.get('GEMINI_API_KEY')
     if api_key:
         api_key = api_key.strip().strip('"').strip("'")
-    else:
-        # Check if there is a local .env file
-        if os.path.exists('.env'):
-            with open('.env') as f:
-                for line in f:
-                    if '=' in line and not line.startswith('#'):
-                        k, v = line.strip().split('=', 1)
-                        if k.strip() == 'GEMINI_API_KEY':
-                            api_key = v.strip().strip('"').strip("'")
-                            break
     
     if not api_key:
         return jsonify({
-            'error': 'Gemini API key is not configured. Please add a `GEMINI_API_KEY=your_key` line to a `.env` file in the project folder or set it in your system environment variables.'
+            'error': 'Gemini API key is not configured. Please add a `GEMINI_API_KEY=your_key` line to your `.env` file.'
         }), 400
 
     data = request.get_json() or {}
@@ -384,7 +530,10 @@ def parse_transaction_ai():
     # Get categories to guide the AI matching
     conn = database.get_db_connection()
     try:
-        categories = conn.execute('SELECT name FROM categories').fetchall()
+        categories = conn.execute(
+            'SELECT name FROM categories WHERE user_id IS NULL OR user_id = ?',
+            (user_id,)
+        ).fetchall()
         category_names = [c['name'] for c in categories]
     except Exception as e:
         category_names = ['Fast Food', 'Clothes', 'Technology', 'Flowers/Gifts', 'Education', 'Entertainment', 'Miscellaneous']
