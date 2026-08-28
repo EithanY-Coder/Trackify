@@ -48,7 +48,7 @@ Trackify removes the friction from personal finance management. Instead of enter
 
 ---
 
-### 🚀 Quick Start (Local Setup)
+###  Quick Start (Local Setup)
 
 #### 1. Clone the Repository
 ```bash
