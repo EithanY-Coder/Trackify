@@ -1,5 +1,56 @@
-# 📊 Trackify ### *Smart, AI-Powered Budget Tracking for Students*     [](LICENSE)
-Log expenses with natural language. Calculate net pay automatically. Ditch manual spreadsheets.
+<div align="center">
+
+# 📊 Trackify
+### *Smart, AI-Powered Budget Tracking for Students*
+
+[![Python](https://img.shields.io/badge/Python-3.9+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
+[![Flask](https://img.shields.io/badge/Flask-000000?style=for-the-badge&logo=flask&logoColor=white)](https://flask.palletsprojects.com/)
+[![SQLite](https://img.shields.io/badge/SQLite-003B57?style=for-the-badge&logo=sqlite&logoColor=white)](https://www.sqlite.org/)
+[![Gemini](https://img.shields.io/badge/Google%20Gemini-8E75B2?style=for-the-badge&logo=googlegemini&logoColor=white)](https://aistudio.google.com/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
+
+<p align="center">
+  <b>Log expenses with natural language. Calculate net pay automatically. Ditch manual spreadsheets.</b>
+</p>
 
 ---
-> 🌐 **Live Demo Coming Soon:** Trackify is currently being prepared for deployment on **Render** (with the Gemini AI integration pre-configured). In the meantime, you can run the full project locally using your own free API key! --- ### ⚡ Overview Trackify removes the friction from personal finance management. Instead of entering amounts into rigid form inputs, users can write plain conversational entries like *"spent $14 on lunch at Subway"* or *"worked 6 hours at $17/hr"*. Trackify extracts key details, tags categories, calculates taxes/wages, and updates your ledger in real time. --- ### ✨ Core Features * 💬 **Natural Language AI Parsing:** Log transactions effortlessly using Google's `gemini-3.1-flash-lite` model. * 💼 **Hourly Income & Tax Calculator:** Input hours worked and hourly pay to automatically compute gross earnings, estimated tax withholdings, and take-home pay. * 🏷️ **Smart Categorization:** Organize spending with customizable labels, color accents, and emoji tags. * ⚡ **Zero-Bloat UI:** Built entirely with vanilla ES6+ JavaScript and modern CSS for instant load times and responsive desktop/mobile views. * 🔒 **Local & Private:** Transaction records stay in your local SQLite instance. --- ### 🛠️ Tech Stack | Layer | Technologies | | :--- | :--- | | **Backend** | Python 3.9+, Flask | | **Database** | SQLite3 | | **Frontend** | Vanilla HTML5, Modern CSS3, JavaScript (ES6+) | | **AI Integration** | Google Gemini API (`gemini-3.1-flash-lite`) | --- ### 🚀 Quick Start (Local Setup) #### 1. Clone the Repository ```bash git clone https://github.com/EithanY-Coder/Trackify.git cd Trackify ``` #### 2. Create a Virtual Environment ```bash # macOS / Linux python3 -m venv .venv source .venv/bin/activate # Windows (Command Prompt / PowerShell) python -m venv .venv .venv\Scripts\activate ``` #### 3. Install Dependencies ```bash pip install flask requests python-dotenv ``` #### 4. Configure Your API Key Create a `.env` file in the root directory: ```env GEMINI_API_KEY="your_api_key_here" ``` *(Get a free key at Google AI Studio)* #### 5. Launch Trackify ```bash python3 app.py ``` Open **`http://127.0.0.1:5001`** in your browser. --- ### 📁 Project Structure ```text Trackify/ ├── app.py # Flask server, routing, and Gemini API endpoints ├── database.py # SQLite connection & schema initialization ├── trackify.db # Local database (generated automatically) ├── .env # Secret keys (ignored by Git) ├── .gitignore # Git exclusion rules ├── static/ │ ├── app.js # Client-side state, DOM manipulation & fetch handlers │ └── style.css # Clean responsive design system └── templates/ └── index.html # Main dashboard layout ``` --- ### 🗺️ Roadmap - [ ] Interactive spending graphs and monthly budget trends - [ ] Automatic recurring transaction tracking (subscriptions, rent) - [ ] One-click export to CSV / Excel --- ### 📄 License Distributed under the **MIT License**. See `LICENSE` for details.
+
+</div>
+
+> 🌐 **Live Demo Coming Soon:** Trackify is currently being prepared for deployment on **Render** (with the Gemini AI integration pre-configured). In the meantime, you can run the full project locally using your own free API key!
+
+---
+
+### ⚡ Overview
+
+Trackify removes the friction from personal finance management. Instead of entering amounts into rigid form inputs, users can write plain conversational entries like *"spent $14 on lunch at Subway"* or *"worked 6 hours at $17/hr"*. Trackify extracts key details, tags categories, calculates taxes/wages, and updates your ledger in real time.
+
+---
+
+### ✨ Core Features
+
+* 💬 **Natural Language AI Parsing:** Log transactions effortlessly using Google's `gemini-3.1-flash-lite` model.
+* 💼 **Hourly Income & Tax Calculator:** Input hours worked and hourly pay to automatically compute gross earnings, estimated tax withholdings, and take-home pay.
+* 🏷️ **Smart Categorization:** Organize spending with customizable labels, color accents, and emoji tags.
+* ⚡ **Zero-Bloat UI:** Built entirely with vanilla ES6+ JavaScript and modern CSS for instant load times and responsive desktop/mobile views.
+* 🔒 **Local & Private:** Transaction records stay in your local SQLite instance.
+
+---
+
+### 🛠️ Tech Stack
+
+| Layer | Technologies |
+| :--- | :--- |
+| **Backend** | Python 3.9+, Flask |
+| **Database** | SQLite3 |
+| **Frontend** | Vanilla HTML5, Modern CSS3, JavaScript (ES6+) |
+| **AI Integration** | Google Gemini API (`gemini-3.1-flash-lite`) |
+
+---
+
+### 🚀 Quick Start (Local Setup)
+
+#### 1. Clone the Repository
+```bash
+git clone [https://github.com/EithanY-Coder/Trackify.git](https://github.com/EithanY-Coder/Trackify.git)
+cd Trackify
