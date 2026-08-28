@@ -54,3 +54,28 @@ Trackify removes the friction from personal finance management. Instead of enter
 ```bash
 git clone [https://github.com/EithanY-Coder/Trackify.git](https://github.com/EithanY-Coder/Trackify.git)
 cd Trackify
+
+# macOS / Linux
+python3 -m venv .venv
+source .venv/bin/activate
+
+# Windows (Command Prompt / PowerShell)
+python -m venv .venv
+.venv\Scripts\activate
+
+pip install flask requests python-dotenv
+GEMINI_API_KEY="your_api_key_here"
+
+python3 app.py
+
+Trackify/
+├── app.py              # Flask server, routing, and Gemini API endpoints
+├── database.py         # SQLite connection & schema initialization
+├── trackify.db         # Local database (generated automatically)
+├── .env                # Secret keys (ignored by Git)
+├── .gitignore          # Git exclusion rules
+├── static/
+│   ├── app.js          # Client-side state, DOM manipulation & fetch handlers
+│   └── style.css       # Clean responsive design system
+└── templates/
+    └── index.html      # Main dashboard layout
