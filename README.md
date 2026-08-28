@@ -1,86 +1,62 @@
-# Trackify 
+Trackify is a lightweight personal budget tracker built for students to log income, track daily spending, and calculate net wages without dealing with complicated spreadsheets. It includes an AI parsing feature powered by Google's Gemini API that automatically extracts transaction details from plain text.
 
-**Trackify** is a smart, interactive Student Budget Tracker designed to help students easily manage their income, expenses, and savings. Built with a Flask backend, SQLite database, and an intuitive, modern frontend, Trackify features **Gemini AI Integration** to automatically parse transactions from natural language.
+Note: Trackify will be hosted live on Render shortly with the Gemini integration built in. Until the live site is up, you will need to provide your own Gemini API key to test the natural language parser locally.
 
----
+Features
+Income & Expense Tracking: Quick logging for daily student expenses and earnings.
 
-## ✨ Features
+Paycheck Calculator: Calculates gross pay, estimated taxes, and take-home pay from hourly wages and hours worked.
 
-- **Double-Entry Ledger:** Easily log income and expenses.
-- **Hourly Income Calculator:** Automatically calculate net/gross pay and tax deductions based on hours worked and hourly wage.
-- **Smart Category Management:** Group transactions with custom icons (emojis) and hex colors.
-- **AI Transaction Parser (Gemini Beta):** Simply type in natural language (e.g., *"worked 5 hours at $15/hr"* or *"spent $12.50 on a burger today"*) and let the AI extract all details, calculate amounts, and assign categories automatically.
-- **Clean Interactive UI:** View analytics, log logs, and interact with a premium, responsive dashboard.
+Category Tags: Organize transactions with custom labels, colors, and emojis.
 
----
+Natural Language Parsing: Type entries normally (e.g., "spent $14 on lunch at Subway" or "tutored 3 hours at $20/hr"), and the app extracts the price, category, and date automatically.
 
-## 🛠️ Tech Stack
+Lightweight UI: Vanilla JavaScript and CSS frontend connected to a Flask/SQLite backend.
 
-- **Backend:** Python (Flask)
-- **Database:** SQLite3
-- **Frontend:** HTML5, CSS3 (Vanilla), JavaScript (ES6+)
-- **AI Integration:** Google Gemini API (`gemini-3.1-flash-lite`)
+Tech Stack
+Backend: Python, Flask
 
----
+Database: SQLite
 
-## ⚙️ Getting Started
+Frontend: Vanilla HTML5, CSS3, JavaScript (ES6+)
 
-### 1. Prerequisites
-Make sure you have Python 3.8+ installed on your machine.
+API: Google Gemini (gemini-3.1-flash-lite)
 
-### 2. Installation
-Clone this repository (or navigate to your local copy) and set up a virtual environment:
+Local Setup
+Clone the repo:
+git clone https://github.com/EithanY-Coder/Trackify.git
+cd Trackify
 
-```bash
-# Navigate to the project directory
-cd "Trackify V1"
+Set up a virtual environment:
 
-# Create a virtual environment
+macOS/Linux
 python3 -m venv .venv
-
-# Activate the virtual environment
 source .venv/bin/activate
 
-# Install dependencies (Flask, requests, etc.)
+Windows
+python -m venv .venv
+.venv\Scripts\activate
+
+Install packages:
 pip install flask requests python-dotenv
-```
 
-### 3. Setup Environment Variables
-Create a file named `.env` in the root directory (do not commit this file to Git):
+Add your API key:
+Create a .env file in the root directory and add your free Gemini key from Google AI Studio:
+GEMINI_API_KEY="your_api_key_here"
 
-```env
-GEMINI_API_KEY="your_actual_gemini_api_key_here"
-```
-
-*Note: `.env` is already configured in `.gitignore` to protect your API keys from leaking online.*
-
-### 4. Running the Application
-Launch the Flask development server:
-
-```bash
+Run the app:
 python3 app.py
-```
 
-The application will start running at `http://127.0.0.1:5001/` (or your configured port). Open this address in your web browser.
+Open http://127.0.0.1:5001 in your browser.
 
----
-
-## 📁 Project Structure
-
-```
-├── app.py              # Main Flask application and API endpoints
-├── database.py         # Database initialization and connection helpers
-├── trackify.db         # SQLite Database (generated locally)
-├── .env                # Local secrets/keys (ignored by Git)
-├── .gitignore          # File specifying ignored items in Git
+Project Layout
+├── app.py              # Flask routes and Gemini API handler
+├── database.py         # SQLite setup and helpers
+├── trackify.db         # Local database file
+├── .env                # Local API keys (git-ignored)
+├── .gitignore
 ├── static/
-│   ├── app.js          # Core frontend application logic
-│   └── style.css       # Premium responsive design system
+│   ├── app.js          # DOM manipulation and fetch requests
+│   └── style.css       # Custom styling
 └── templates/
-    └── index.html      # Dashboard layout and controls
-```
-
----
-
-## 🔒 Security & Privacy Reminder
-Never commit or upload your `.env` file or local databases (`trackify.db`) to GitHub. These files are listed in `.gitignore` to keep your credentials and personal information private.
+└── index.html      # Main dashboard view
