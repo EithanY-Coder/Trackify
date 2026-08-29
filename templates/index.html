@@ -649,62 +649,84 @@
             <!-- TAB 5: AI Advisor (Full Screen) -->
             <section id="advisor-tab" class="tab-content">
                 <div class="advisor-fullscreen">
-                    <!-- Header -->
-                    <div class="advisor-fs-header">
-                        <div class="advisor-fs-title">
-                            <div class="advisor-fs-icon">
-                                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+
+                    <!-- Sessions Sidebar -->
+                    <div class="advisor-sessions-sidebar" id="advisor-sessions-sidebar">
+                        <div class="advisor-sessions-header">
+                            <span class="advisor-sessions-label">Conversations</span>
+                            <button class="advisor-new-chat-btn" id="btn-new-chat" title="Start a new conversation">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
                                 </svg>
-                            </div>
-                            <div>
-                                <h2>AI Financial Advisor</h2>
-                                <p>Powered by Gemini &mdash; your personal money coach</p>
-                            </div>
+                                New Chat
+                            </button>
                         </div>
-                        <button class="advisor-fs-clear-btn" id="btn-fs-clear-chat" title="Clear conversation">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <polyline points="3 6 5 6 21 6"/>
-                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-                                <line x1="10" y1="11" x2="10" y2="17"/>
-                                <line x1="14" y1="11" x2="14" y2="17"/>
-                            </svg>
-                            Clear Memory
-                        </button>
-                    </div>
-
-                    <!-- Chat messages area -->
-                    <div class="advisor-fs-chat" id="advisor-fs-chat-area">
-                        <div class="advisor-fs-welcome">
-                            <div class="advisor-fs-avatar">🤖</div>
-                            <div class="advisor-fs-welcome-text">
-                                <h3>Hi there! I'm your Trackify Financial Coach.</h3>
-                                <p>I can see your real-time spending, savings goals, and budget categories. Ask me anything &mdash; from cutting costs to hitting your targets faster.</p>
-                            </div>
+                        <div class="advisor-sessions-list" id="advisor-sessions-list">
+                            <!-- Sessions rendered by JS -->
                         </div>
                     </div>
 
-                    <!-- Input bar -->
-                    <form class="advisor-fs-input-bar" id="advisor-fs-form">
-                        <button type="button" class="advisor-fs-mic" id="btn-fs-mic" title="Speak your question">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
-                                <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-                                <line x1="12" y1="19" x2="12" y2="23"/>
-                                <line x1="8" y1="23" x2="16" y2="23"/>
-                            </svg>
-                        </button>
-                        <input type="text" id="advisor-fs-input" placeholder="Ask about your budget, goals, or spending habits..." autocomplete="off">
-                        <button type="submit" class="advisor-fs-send" id="btn-fs-send">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                                <line x1="22" y1="2" x2="11" y2="13"/>
-                                <polygon points="22 2 15 22 11 13 2 9 22 2"/>
-                            </svg>
-                            Send
-                        </button>
-                    </form>
+                    <!-- Main Chat Panel -->
+                    <div class="advisor-chat-panel">
+                        <!-- Header -->
+                        <div class="advisor-fs-header">
+                            <div class="advisor-fs-title">
+                                <div class="advisor-fs-icon">
+                                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                                    </svg>
+                                </div>
+                                <div>
+                                    <h2 id="advisor-fs-session-title">AI Financial Advisor</h2>
+                                    <p>Powered by Gemini &mdash; your personal money coach</p>
+                                </div>
+                            </div>
+                            <button class="advisor-fs-clear-btn" id="btn-fs-clear-chat" title="Clear this conversation">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <polyline points="3 6 5 6 21 6"/>
+                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                                    <line x1="10" y1="11" x2="10" y2="17"/>
+                                    <line x1="14" y1="11" x2="14" y2="17"/>
+                                </svg>
+                                Clear Chat
+                            </button>
+                        </div>
+
+                        <!-- Chat messages area -->
+                        <div class="advisor-fs-chat" id="advisor-fs-chat-area">
+                            <div class="advisor-fs-welcome">
+                                <div class="advisor-fs-avatar">🤖</div>
+                                <div class="advisor-fs-welcome-text">
+                                    <h3>Hi there! I'm your Trackify Financial Coach.</h3>
+                                    <p>I can see your real-time spending, savings goals, and budget categories. Ask me anything &mdash; from cutting costs to hitting your targets faster.</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Input bar -->
+                        <form class="advisor-fs-input-bar" id="advisor-fs-form">
+                            <button type="button" class="advisor-fs-mic" id="btn-fs-mic" title="Speak your question">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                                    <line x1="12" y1="19" x2="12" y2="23"/>
+                                    <line x1="8" y1="23" x2="16" y2="23"/>
+                                </svg>
+                            </button>
+                            <input type="text" id="advisor-fs-input" placeholder="Ask about your budget, goals, or spending habits..." autocomplete="off">
+                            <button type="submit" class="advisor-fs-send" id="btn-fs-send">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <line x1="22" y1="2" x2="11" y2="13"/>
+                                    <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                                </svg>
+                                Send
+                            </button>
+                        </form>
+                    </div>
+
                 </div>
             </section>
+
         </main>
     </div>
 

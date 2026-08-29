@@ -700,18 +700,111 @@ Active Savings Goals:
 
 # ----------------- AI ADVISOR API -----------------
 
+# ---- Session Management ----
+
+@app.route('/api/advisor/sessions', methods=['GET'])
+def list_advisor_sessions():
+    user_id = get_auth_user()
+    if not user_id:
+        return jsonify({'error': 'Unauthorized. Please log in.'}), 401
+    conn = database.get_db_connection()
+    try:
+        sessions = conn.execute('''
+            SELECT s.id, s.title, s.created_at, s.updated_at,
+                   COUNT(m.id) as message_count
+            FROM chat_sessions s
+            LEFT JOIN chat_messages m ON m.session_id = s.id
+            WHERE s.user_id = ?
+            GROUP BY s.id
+            ORDER BY s.updated_at DESC
+        ''', (user_id,)).fetchall()
+        return jsonify([dict(s) for s in sessions])
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        conn.close()
+
+
+@app.route('/api/advisor/sessions', methods=['POST'])
+def create_advisor_session():
+    user_id = get_auth_user()
+    if not user_id:
+        return jsonify({'error': 'Unauthorized. Please log in.'}), 401
+    data = request.get_json() or {}
+    title = data.get('title', 'New Chat').strip() or 'New Chat'
+    conn = database.get_db_connection()
+    try:
+        cursor = conn.execute(
+            "INSERT INTO chat_sessions (user_id, title) VALUES (?, ?)",
+            (user_id, title)
+        )
+        conn.commit()
+        session_id = cursor.lastrowid
+        session = conn.execute('SELECT * FROM chat_sessions WHERE id = ?', (session_id,)).fetchone()
+        return jsonify(dict(session)), 201
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        conn.close()
+
+
+@app.route('/api/advisor/sessions/<int:session_id>', methods=['PATCH'])
+def rename_advisor_session(session_id):
+    user_id = get_auth_user()
+    if not user_id:
+        return jsonify({'error': 'Unauthorized. Please log in.'}), 401
+    data = request.get_json() or {}
+    title = data.get('title', '').strip()
+    if not title:
+        return jsonify({'error': 'Title is required.'}), 400
+    conn = database.get_db_connection()
+    try:
+        result = conn.execute(
+            "UPDATE chat_sessions SET title = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?",
+            (title, session_id, user_id)
+        )
+        conn.commit()
+        if result.rowcount == 0:
+            return jsonify({'error': 'Session not found.'}), 404
+        return jsonify({'success': True, 'title': title})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        conn.close()
+
+
+@app.route('/api/advisor/sessions/<int:session_id>', methods=['DELETE'])
+def delete_advisor_session(session_id):
+    user_id = get_auth_user()
+    if not user_id:
+        return jsonify({'error': 'Unauthorized. Please log in.'}), 401
+    conn = database.get_db_connection()
+    try:
+        # Cascade delete handled by FK; also delete messages explicitly for safety
+        conn.execute('DELETE FROM chat_messages WHERE session_id = ? AND user_id = ?', (session_id, user_id))
+        result = conn.execute('DELETE FROM chat_sessions WHERE id = ? AND user_id = ?', (session_id, user_id))
+        conn.commit()
+        if result.rowcount == 0:
+            return jsonify({'error': 'Session not found.'}), 404
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        conn.close()
+
+
+# ---- Chat (session-scoped) ----
+
 @app.route('/api/advisor/chat', methods=['POST'])
 @limiter.limit("5 per minute")
 def advisor_chat():
     user_id = get_auth_user()
     if not user_id:
         return jsonify({'error': 'Unauthorized. Please log in.'}), 401
-        
-    # Load API Key
+
     api_key = os.environ.get('GEMINI_API_KEY')
     if api_key:
         api_key = api_key.strip().strip('"').strip("'")
-    
     if not api_key:
         return jsonify({
             'error': 'Gemini API key is not configured. Please add a `GEMINI_API_KEY=your_key` line to your `.env` file.'
@@ -719,34 +812,42 @@ def advisor_chat():
 
     data = request.get_json() or {}
     message = data.get('message', '').strip()
+    session_id = data.get('session_id')
+
     if not message:
         return jsonify({'error': 'Message content is required.'}), 400
+    if not session_id:
+        return jsonify({'error': 'session_id is required.'}), 400
 
     conn = database.get_db_connection()
     try:
+        # Verify session belongs to user
+        session = conn.execute(
+            'SELECT * FROM chat_sessions WHERE id = ? AND user_id = ?', (session_id, user_id)
+        ).fetchone()
+        if not session:
+            return jsonify({'error': 'Session not found.'}), 404
+
         # 1. Fetch live financial snapshot
         financial_profile = get_user_financial_profile(user_id)
 
-        # 2. Get last 15 messages for history context
+        # 2. Get last 15 messages for this session
         history_rows = conn.execute('''
-            SELECT role, content FROM chat_messages 
-            WHERE user_id = ? 
+            SELECT role, content FROM chat_messages
+            WHERE user_id = ? AND session_id = ?
             ORDER BY created_at ASC, id ASC
             LIMIT 15
-        ''', (user_id,)).fetchall()
+        ''', (user_id, session_id)).fetchall()
 
-        # 3. Format history for Google GenAI SDK (types.Content)
+        # 3. Format history for Google GenAI SDK
         contents = []
         for row in history_rows:
-            # Map role: db role is either 'user' or 'model'
             contents.append(
                 types.Content(
                     role=row['role'],
                     parts=[types.Part.from_text(text=row['content'])]
                 )
             )
-
-        # Append new user message
         contents.append(
             types.Content(
                 role="user",
@@ -754,10 +855,9 @@ def advisor_chat():
             )
         )
 
-        # 4. Initialize Gemini client & configure instructions
+        # 4. System prompt
         client = genai.Client(api_key=api_key)
-        
-        system_instruction = f"""You are 'Trackify Advisor', a sharp, empathetic, and encouraging personal financial coach for teens and students. 
+        system_instruction = f"""You are 'Trackify Advisor', a sharp, empathetic, and encouraging personal financial coach for teens and students.
 
 CRITICAL FORMATTING RULES:
 1. NEVER use markdown formatting. Do NOT output asterisks (such as '**' for bolding or '*' for lists), hashes, or markdown bullet symbols.
@@ -769,78 +869,96 @@ Base all your advice on the user's real-time financial profile provided below. H
 
 {financial_profile}"""
 
-        config = types.GenerateContentConfig(
-            system_instruction=system_instruction
-        )
+        config = types.GenerateContentConfig(system_instruction=system_instruction)
 
-        # 5. Call Gemini 3.6 Flash
+        # 5. Call Gemini
         response = client.models.generate_content(
             model='gemini-3.6-flash',
             contents=contents,
             config=config
         )
 
-        # Clean reply text to strip any stray markdown asterisks/headers
         reply_text = response.text or ""
         reply_text = reply_text.replace('**', '').replace('###', '').replace('##', '')
-        # Replace markdown list markers with clean bullet symbols
         reply_text = reply_text.replace('\n* ', '\n• ').replace('\n- ', '\n• ')
 
-        # 6. Save dialog to chat_messages in DB
-        # User message
-        conn.execute('''
-            INSERT INTO chat_messages (user_id, role, content)
-            VALUES (?, 'user', ?)
-        ''', (user_id, message))
-        
-        # Model message
-        conn.execute('''
-            INSERT INTO chat_messages (user_id, role, content)
-            VALUES (?, 'model', ?)
-        ''', (user_id, reply_text))
-        
-        conn.commit()
+        # 6. Save messages
+        conn.execute(
+            'INSERT INTO chat_messages (user_id, session_id, role, content) VALUES (?, ?, \'user\', ?)',
+            (user_id, session_id, message)
+        )
+        conn.execute(
+            'INSERT INTO chat_messages (user_id, session_id, role, content) VALUES (?, ?, \'model\', ?)',
+            (user_id, session_id, reply_text)
+        )
 
+        # 7. Auto-name session on first message
+        if session['title'] == 'New Chat':
+            auto_title = message[:45] + ('…' if len(message) > 45 else '')
+            conn.execute(
+                'UPDATE chat_sessions SET title = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+                (auto_title, session_id)
+            )
+        else:
+            conn.execute(
+                'UPDATE chat_sessions SET updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+                (session_id,)
+            )
+
+        conn.commit()
         return jsonify({'reply': reply_text})
     except Exception as e:
         return jsonify({'error': f'Failed to process with AI: {str(e)}'}), 500
     finally:
         conn.close()
 
+
 @app.route('/api/advisor/history', methods=['GET'])
 def get_advisor_history():
     user_id = get_auth_user()
     if not user_id:
         return jsonify({'error': 'Unauthorized. Please log in.'}), 401
-        
+
+    session_id = request.args.get('session_id')
     conn = database.get_db_connection()
     try:
-        history = conn.execute('''
-            SELECT role, content, created_at FROM chat_messages 
-            WHERE user_id = ? 
-            ORDER BY created_at ASC, id ASC
-        ''', (user_id,)).fetchall()
+        if session_id:
+            history = conn.execute('''
+                SELECT role, content, created_at FROM chat_messages
+                WHERE user_id = ? AND session_id = ?
+                ORDER BY created_at ASC, id ASC
+            ''', (user_id, session_id)).fetchall()
+        else:
+            # Fallback: return empty (sessions are now mandatory)
+            history = []
         return jsonify([dict(h) for h in history])
     except Exception as e:
         return jsonify({'error': str(e)}), 500
     finally:
         conn.close()
 
+
 @app.route('/api/advisor/history', methods=['DELETE'])
 def delete_advisor_history():
+    """Clear messages for a specific session (kept for backward compat with drawer)."""
     user_id = get_auth_user()
     if not user_id:
         return jsonify({'error': 'Unauthorized. Please log in.'}), 401
-        
+
+    session_id = request.args.get('session_id')
     conn = database.get_db_connection()
     try:
-        conn.execute('DELETE FROM chat_messages WHERE user_id = ?', (user_id,))
+        if session_id:
+            conn.execute('DELETE FROM chat_messages WHERE user_id = ? AND session_id = ?', (user_id, session_id))
+        else:
+            conn.execute('DELETE FROM chat_messages WHERE user_id = ?', (user_id,))
         conn.commit()
         return jsonify({'success': True, 'message': 'Conversation history cleared.'})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
     finally:
         conn.close()
+
 
 # ----------------- AI PARSING API -----------------
 

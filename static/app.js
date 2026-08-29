@@ -619,13 +619,140 @@ function initGoalsEvents() {
 }
 
 // ==========================================================================
-// AI ADVISOR CHAT SYSTEM
+// AI ADVISOR CHAT SYSTEM — MULTI-SESSION
 // ==========================================================================
 let chatHistory = [];
+let currentSessionId = null;
+let sessions = [];
+
+// ---- Session Management ----
+
+async function fetchSessions() {
+    try {
+        const response = await apiCall('/api/advisor/sessions');
+        if (response.ok) {
+            sessions = await response.json();
+            renderSessionsList();
+        }
+    } catch (err) {
+        console.error('Failed to load sessions:', err);
+    }
+}
+
+async function createSession() {
+    try {
+        const response = await apiCall('/api/advisor/sessions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title: 'New Chat' })
+        });
+        if (response.ok) {
+            const session = await response.json();
+            sessions.unshift(session);
+            renderSessionsList();
+            await switchSession(session.id);
+        }
+    } catch (err) {
+        console.error('Failed to create session:', err);
+        showToast('Could not create a new chat.', 'error');
+    }
+}
+
+async function deleteSession(sessionId, e) {
+    e.stopPropagation();
+    if (!confirm('Delete this conversation? This cannot be undone.')) return;
+    try {
+        const response = await apiCall(`/api/advisor/sessions/${sessionId}`, { method: 'DELETE' });
+        if (response.ok) {
+            sessions = sessions.filter(s => s.id !== sessionId);
+            renderSessionsList();
+            if (currentSessionId === sessionId) {
+                // Switch to next session or clear
+                if (sessions.length > 0) {
+                    await switchSession(sessions[0].id);
+                } else {
+                    currentSessionId = null;
+                    chatHistory = [];
+                    renderAdvisorHistory();
+                    updateSessionTitle('New Chat');
+                }
+            }
+            showToast('Conversation deleted.', 'success');
+        }
+    } catch (err) {
+        console.error(err);
+        showToast('Could not delete conversation.', 'error');
+    }
+}
+
+async function switchSession(sessionId) {
+    currentSessionId = sessionId;
+    renderSessionsList(); // update active highlight immediately
+    await fetchAdvisorHistory();
+    // Update header title
+    const session = sessions.find(s => s.id === sessionId);
+    updateSessionTitle(session ? session.title : 'New Chat');
+}
+
+function updateSessionTitle(title) {
+    const titleEl = document.getElementById('advisor-fs-session-title');
+    if (titleEl) titleEl.textContent = title;
+}
+
+function renderSessionsList() {
+    const list = document.getElementById('advisor-sessions-list');
+    if (!list) return;
+
+    if (sessions.length === 0) {
+        list.innerHTML = `<div class="advisor-sessions-empty">No conversations yet.<br>Click "New Chat" to start.</div>`;
+        return;
+    }
+
+    list.innerHTML = sessions.map(s => {
+        const isActive = s.id === currentSessionId;
+        const date = new Date(s.updated_at || s.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        return `
+            <div class="advisor-session-item ${isActive ? 'active' : ''}" data-session-id="${s.id}">
+                <div class="advisor-session-icon">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                    </svg>
+                </div>
+                <div class="advisor-session-info">
+                    <div class="advisor-session-title">${escapeHtml(s.title)}</div>
+                    <div class="advisor-session-date">${date}</div>
+                </div>
+                <button class="advisor-session-delete" data-session-id="${s.id}" title="Delete conversation">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="3 6 5 6 21 6"/>
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                    </svg>
+                </button>
+            </div>
+        `;
+    }).join('');
+
+    // Bind click events
+    list.querySelectorAll('.advisor-session-item').forEach(item => {
+        item.addEventListener('click', () => {
+            const id = parseInt(item.getAttribute('data-session-id'));
+            if (id !== currentSessionId) switchSession(id);
+        });
+    });
+    list.querySelectorAll('.advisor-session-delete').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const id = parseInt(btn.getAttribute('data-session-id'));
+            deleteSession(id, e);
+        });
+    });
+}
+
+// ---- History & Rendering ----
 
 async function fetchAdvisorHistory() {
     try {
-        const response = await apiCall('/api/advisor/history');
+        const url = currentSessionId ? `/api/advisor/history?session_id=${currentSessionId}` : '/api/advisor/history';
+        const response = await apiCall(url);
         if (response.ok) {
             chatHistory = await response.json();
             renderAdvisorHistory();
@@ -696,10 +823,8 @@ function scrollToBottom(element) {
 function showTypingIndicator() {
     const chatArea = getActiveChatArea();
     if (!chatArea) return;
-    // Remove any existing indicator first
     const existing = document.getElementById('advisor-typing-indicator');
     if (existing) existing.remove();
-
     const indicator = document.createElement('div');
     indicator.className = 'typing-indicator-container';
     indicator.id = 'advisor-typing-indicator';
@@ -714,10 +839,10 @@ function showTypingIndicator() {
 
 function hideTypingIndicator() {
     const indicator = document.getElementById('advisor-typing-indicator');
-    if (indicator) {
-        indicator.remove();
-    }
+    if (indicator) indicator.remove();
 }
+
+// ---- Event Wiring ----
 
 function initAdvisorEvents() {
     // Drawer elements
@@ -726,19 +851,19 @@ function initAdvisorEvents() {
     const backdrop = document.getElementById('advisor-drawer-backdrop');
     const drawer = document.getElementById('advisor-drawer');
 
-    // Drawer chat form (side popup, used on non-advisor tabs)
     const chatForm = document.getElementById('advisor-chat-form');
     const chatInput = document.getElementById('advisor-chat-input');
     const btnClear = document.getElementById('btn-clear-chat');
     const btnMic = document.getElementById('btn-advisor-mic');
 
-    // Full-screen chat form
+    // Full-screen elements
     const fsForm = document.getElementById('advisor-fs-form');
     const fsInput = document.getElementById('advisor-fs-input');
     const btnFsClear = document.getElementById('btn-fs-clear-chat');
     const btnFsMic = document.getElementById('btn-fs-mic');
+    const btnNewChat = document.getElementById('btn-new-chat');
 
-    // ---- Drawer Toggles ----
+    // ---- Drawer ----
     const openDrawer = () => {
         if (drawer && backdrop) {
             drawer.classList.add('active');
@@ -746,24 +871,30 @@ function initAdvisorEvents() {
             fetchAdvisorHistory();
         }
     };
-
     const closeDrawer = () => {
         if (drawer && backdrop) {
             drawer.classList.remove('active');
             backdrop.classList.remove('active');
         }
     };
-
-    // Float button (visible on all tabs except advisor-tab) opens drawer
     if (btnFloat) btnFloat.addEventListener('click', openDrawer);
     if (btnClose) btnClose.addEventListener('click', closeDrawer);
     if (backdrop) backdrop.addEventListener('click', closeDrawer);
 
-    // ---- Shared submit logic ----
+    // ---- New Chat ----
+    if (btnNewChat) btnNewChat.addEventListener('click', createSession);
+
+    // ---- Shared send logic ----
     const sendMessage = async (message, inputEl) => {
         if (!message) return;
-        inputEl.value = '';
 
+        // Auto-create session if none selected
+        if (!currentSessionId) {
+            await createSession();
+            if (!currentSessionId) return; // bail if creation failed
+        }
+
+        inputEl.value = '';
         chatHistory.push({ role: 'user', content: message });
         renderAdvisorHistory();
         showTypingIndicator();
@@ -772,13 +903,17 @@ function initAdvisorEvents() {
             const response = await apiCall('/api/advisor/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message })
+                body: JSON.stringify({ message, session_id: currentSessionId })
             });
             hideTypingIndicator();
             if (response.ok) {
                 const result = await response.json();
                 chatHistory.push({ role: 'model', content: result.reply });
                 renderAdvisorHistory();
+                // Refresh sessions list so auto-renamed title shows
+                await fetchSessions();
+                const updated = sessions.find(s => s.id === currentSessionId);
+                if (updated) updateSessionTitle(updated.title);
             } else {
                 const errRes = await response.json();
                 showToast(errRes.error || 'Rate limit exceeded or error occurred.', 'error');
@@ -790,17 +925,18 @@ function initAdvisorEvents() {
         }
     };
 
-    // ---- Shared clear logic ----
+    // ---- Shared clear logic (clears messages in current session) ----
     const clearMemory = async () => {
-        if (confirm('Clear your entire conversation memory? This cannot be undone.')) {
+        if (!currentSessionId) return;
+        if (confirm('Clear all messages in this conversation? This cannot be undone.')) {
             try {
-                const response = await apiCall('/api/advisor/history', { method: 'DELETE' });
+                const response = await apiCall(`/api/advisor/history?session_id=${currentSessionId}`, { method: 'DELETE' });
                 if (response.ok) {
-                    showToast('Advisor memory cleared!', 'success');
+                    showToast('Conversation cleared!', 'success');
                     chatHistory = [];
                     renderAdvisorHistory();
                 } else {
-                    showToast('Failed to clear memory', 'error');
+                    showToast('Failed to clear messages', 'error');
                 }
             } catch (err) {
                 console.error(err);
@@ -809,68 +945,54 @@ function initAdvisorEvents() {
         }
     };
 
-    // ---- Drawer form submit ----
+    // ---- Drawer form ----
     if (chatForm) {
         chatForm.addEventListener('submit', (e) => {
             e.preventDefault();
             sendMessage(chatInput.value.trim(), chatInput);
         });
     }
-
     if (btnClear) btnClear.addEventListener('click', clearMemory);
 
-    // ---- Full-screen form submit ----
+    // ---- Full-screen form ----
     if (fsForm) {
         fsForm.addEventListener('submit', (e) => {
             e.preventDefault();
             sendMessage(fsInput.value.trim(), fsInput);
         });
     }
-
     if (btnFsClear) btnFsClear.addEventListener('click', clearMemory);
 
-    // ---- Voice: shared mic factory ----
+    // ---- Voice mic factory ----
     const setupMic = (btn, inputEl) => {
         if (!btn || !inputEl) return;
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!SpeechRecognition) { btn.style.display = 'none'; return; }
-
         const recognition = new SpeechRecognition();
         recognition.continuous = false;
         recognition.lang = 'en-US';
         recognition.interimResults = false;
         recognition.maxAlternatives = 1;
-
         btn.addEventListener('click', (e) => {
             e.stopPropagation();
-            if (btn.classList.contains('recording')) {
-                recognition.stop();
-            } else {
-                try { recognition.start(); } catch (ex) { console.error(ex); }
-            }
+            if (btn.classList.contains('recording')) { recognition.stop(); }
+            else { try { recognition.start(); } catch (ex) { console.error(ex); } }
         });
-
-        recognition.onstart = () => {
-            btn.classList.add('recording');
-            inputEl.placeholder = 'Listening...';
-        };
-        recognition.onerror = () => {
-            btn.classList.remove('recording');
-            inputEl.placeholder = '';
-        };
-        recognition.onend = () => {
-            btn.classList.remove('recording');
-            inputEl.placeholder = '';
-        };
+        recognition.onstart = () => { btn.classList.add('recording'); inputEl.placeholder = 'Listening...'; };
+        recognition.onerror = () => { btn.classList.remove('recording'); inputEl.placeholder = ''; };
+        recognition.onend = () => { btn.classList.remove('recording'); inputEl.placeholder = ''; };
         recognition.onresult = (event) => {
             const transcript = event.results[0][0].transcript;
             if (transcript) { inputEl.value = transcript; inputEl.focus(); }
         };
     };
-
     setupMic(btnMic, chatInput);
     setupMic(btnFsMic, fsInput);
 }
+
+
+
+
 
 // ==========================================================================
 // FORM DROPDOWNS POPULATION
@@ -1084,8 +1206,14 @@ function switchTab(tabId) {
     // Toggle body class so the float button hides on the advisor tab
     if (tabId === 'advisor-tab') {
         document.body.classList.add('advisor-tab-active');
-        // Refresh history for the full-screen view
-        fetchAdvisorHistory();
+        // Load sessions then auto-select (or create) the first one
+        fetchSessions().then(async () => {
+            if (sessions.length > 0) {
+                if (!currentSessionId) await switchSession(sessions[0].id);
+                else renderSessionsList(); // re-highlight active
+            }
+            // No auto-create on load — let user click "New Chat"
+        });
     } else {
         document.body.classList.remove('advisor-tab-active');
     }
