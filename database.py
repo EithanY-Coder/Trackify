@@ -51,6 +51,32 @@ def init_db():
     # Create indexes for performance
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_transactions_user_id ON transactions(user_id);')
     
+    # Create goals table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS goals (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT NOT NULL,
+            title TEXT NOT NULL,
+            target_amount REAL NOT NULL,
+            saved_amount REAL NOT NULL DEFAULT 0.0,
+            deadline TEXT NOT NULL,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_goals_user_id ON goals(user_id);')
+
+    # Create chat_messages table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS chat_messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT NOT NULL,
+            role TEXT NOT NULL,
+            content TEXT NOT NULL,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_chat_messages_user_id ON chat_messages(user_id);')
+    
     # Pre-seed categories if empty
     cursor.execute('SELECT COUNT(*) FROM categories WHERE user_id IS NULL')
     if cursor.fetchone()[0] == 0:

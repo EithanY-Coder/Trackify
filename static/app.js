@@ -5,6 +5,7 @@
 const state = {
     transactions: [],
     categories: [],
+    goals: [],
     activeTab: 'dashboard',
     chartFilter: 'all', // 'all', 'month', 'week'
     currentUser: null,
@@ -17,6 +18,15 @@ const elements = {
     authContainer: document.getElementById('auth-container'),
     appContainer: document.getElementById('app-container'),
     
+    // Goals elements
+    addGoalModal: document.getElementById('add-goal-modal'),
+    updateGoalModal: document.getElementById('update-goal-modal'),
+    addGoalForm: document.getElementById('add-goal-form'),
+    updateGoalForm: document.getElementById('update-goal-form'),
+    btnCancelAddGoal: document.getElementById('btn-cancel-add-goal'),
+    btnCancelUpdateGoal: document.getElementById('btn-cancel-update-goal'),
+    btnAddGoalTrigger: document.getElementById('btn-add-goal-trigger'),
+
     // Auth Form Elements
     authForm: document.getElementById('auth-form'),
     authTitle: document.getElementById('auth-title'),
@@ -117,6 +127,12 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Initialize AI Logger
     initAiLogger();
+    
+    // Initialize Goals Events
+    initGoalsEvents();
+    
+    // Initialize Advisor Events
+    initAdvisorEvents();
     
     // Check authentication and initialize app data
     initAuth();
@@ -387,11 +403,17 @@ async function fetchData() {
     try {
         await Promise.all([
             fetchCategories(),
-            fetchTransactions()
+            fetchTransactions(),
+            fetchGoals(),
+            fetchAdvisorHistory()
         ]);
     } catch (err) {
         console.error('Error fetching initial data:', err);
-        if (err.message !== 'Unauthorized') {
+        const isNetworkError = err instanceof TypeError || 
+                               err.message.includes('Failed to fetch') || 
+                               err.message.includes('NetworkError') ||
+                               err.message.includes('Network request failed');
+        if (isNetworkError) {
             showToast('Failed to connect to Flask API server. Make sure server is running.', 'error');
         }
     }
@@ -416,6 +438,438 @@ async function fetchTransactions() {
     renderCategoryBudgets();
     renderHistoryTransactions();
     renderCharts();
+}
+
+// ==========================================================================
+// SAVINGS GOALS MANAGEMENT
+// ==========================================================================
+async function fetchGoals() {
+    const response = await apiCall('/api/goals');
+    if (!response.ok) throw new Error('Failed to load goals');
+    state.goals = await response.json();
+    renderGoals();
+}
+
+function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/&/g, "&amp;")
+              .replace(/</g, "&lt;")
+              .replace(/>/g, "&gt;")
+              .replace(/"/g, "&quot;")
+              .replace(/'/g, "&#039;");
+}
+
+function renderGoals() {
+    const container = document.getElementById('dashboard-goals-list');
+    if (!container) return;
+    
+    if (state.goals.length === 0) {
+        container.innerHTML = '<div class="no-data-msg">No savings goals set yet.</div>';
+        return;
+    }
+    
+    container.innerHTML = state.goals.map(g => {
+        const percent = Math.min(100, Math.max(0, (g.saved_amount / g.target_amount) * 100));
+        return `
+            <div class="goal-item" data-id="${g.id}">
+                <div class="goal-info">
+                    <span class="goal-title">${escapeHtml(g.title)}</span>
+                    <span class="goal-deadline">Deadline: ${g.deadline}</span>
+                </div>
+                <div class="goal-progress-container">
+                    <div class="goal-progress-bar-bg">
+                        <div class="goal-progress-bar-fill" style="width: ${percent}%"></div>
+                    </div>
+                    <div class="goal-stats">
+                        <span class="goal-amounts">${formatCurrency(g.saved_amount)} / ${formatCurrency(g.target_amount)}</span>
+                        <span class="goal-percentage">${percent.toFixed(0)}%</span>
+                    </div>
+                </div>
+                <div class="goal-actions">
+                    <button class="goal-btn-update" onclick="openUpdateGoalModal(${g.id}, '${escapeHtml(g.title).replace(/'/g, "\\'")}', ${g.saved_amount})">Update Progress</button>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function openUpdateGoalModal(id, title, savedAmount) {
+    const modal = document.getElementById('update-goal-modal');
+    const idInput = document.getElementById('update-goal-id');
+    const titleInput = document.getElementById('update-goal-title');
+    const savedInput = document.getElementById('update-goal-saved');
+    
+    if (modal && idInput && titleInput && savedInput) {
+        idInput.value = id;
+        titleInput.value = title;
+        savedInput.value = savedAmount;
+        modal.classList.add('active');
+    }
+}
+
+// Expose globally so inline onclick handler can access it
+window.openUpdateGoalModal = openUpdateGoalModal;
+
+function initGoalsEvents() {
+    const addTrigger = document.getElementById('btn-add-goal-trigger');
+    const addModal = document.getElementById('add-goal-modal');
+    const closeAddBtn = document.getElementById('btn-close-add-goal-modal');
+    const cancelAddBtn = document.getElementById('btn-cancel-add-goal');
+    
+    const updateModal = document.getElementById('update-goal-modal');
+    const closeUpdateBtn = document.getElementById('btn-close-update-goal-modal');
+    const cancelUpdateBtn = document.getElementById('btn-cancel-update-goal');
+    
+    const addForm = document.getElementById('add-goal-form');
+    const updateForm = document.getElementById('update-goal-form');
+
+    // Open/Close Add Modal
+    if (addTrigger && addModal) {
+        addTrigger.addEventListener('click', () => {
+            const threeMonthsFromNow = new Date();
+            threeMonthsFromNow.setMonth(threeMonthsFromNow.getMonth() + 3);
+            const dateStr = threeMonthsFromNow.toISOString().split('T')[0];
+            document.getElementById('goal-deadline').value = dateStr;
+            addModal.classList.add('active');
+        });
+    }
+    
+    const closeAddModal = () => {
+        if (addModal) {
+            addModal.classList.remove('active');
+            if (addForm) addForm.reset();
+        }
+    };
+    
+    if (closeAddBtn) closeAddBtn.addEventListener('click', closeAddModal);
+    if (cancelAddBtn) cancelAddBtn.addEventListener('click', closeAddModal);
+
+    // Close Update Modal
+    const closeUpdateModal = () => {
+        if (updateModal) {
+            updateModal.classList.remove('active');
+            if (updateForm) updateForm.reset();
+        }
+    };
+    
+    if (closeUpdateBtn) closeUpdateBtn.addEventListener('click', closeUpdateModal);
+    if (cancelUpdateBtn) cancelUpdateBtn.addEventListener('click', closeUpdateModal);
+
+    // Form Submissions
+    if (addForm) {
+        addForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const data = {
+                title: document.getElementById('goal-title').value.trim(),
+                target_amount: parseFloat(document.getElementById('goal-target').value),
+                deadline: document.getElementById('goal-deadline').value
+            };
+            
+            try {
+                const response = await apiCall('/api/goals', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                
+                if (response.ok) {
+                    showToast('Savings goal created successfully!', 'success');
+                    closeAddModal();
+                    await fetchGoals();
+                } else {
+                    const errRes = await response.json();
+                    showToast(errRes.error || 'Failed to create goal', 'error');
+                }
+            } catch (err) {
+                console.error(err);
+                showToast('Error connecting to server', 'error');
+            }
+        });
+    }
+
+    if (updateForm) {
+        updateForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('update-goal-id').value;
+            const data = {
+                saved_amount: parseFloat(document.getElementById('update-goal-saved').value)
+            };
+            
+            try {
+                const response = await apiCall(`/api/goals/${id}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                
+                if (response.ok) {
+                    showToast('Goal progress updated!', 'success');
+                    closeUpdateModal();
+                    await fetchGoals();
+                } else {
+                    const errRes = await response.json();
+                    showToast(errRes.error || 'Failed to update goal', 'error');
+                }
+            } catch (err) {
+                console.error(err);
+                showToast('Error connecting to server', 'error');
+            }
+        });
+    }
+}
+
+// ==========================================================================
+// AI ADVISOR CHAT SYSTEM
+// ==========================================================================
+let chatHistory = [];
+
+async function fetchAdvisorHistory() {
+    try {
+        const response = await apiCall('/api/advisor/history');
+        if (response.ok) {
+            chatHistory = await response.json();
+            renderAdvisorHistory();
+        }
+    } catch (err) {
+        console.error('Failed to load chat history:', err);
+    }
+}
+
+// Returns the currently visible chat area (full-screen tab takes priority)
+function getActiveChatArea() {
+    const fsArea = document.getElementById('advisor-fs-chat-area');
+    const drawerArea = document.getElementById('advisor-chat-area');
+    if (fsArea && document.getElementById('advisor-tab')?.classList.contains('active')) {
+        return fsArea;
+    }
+    return drawerArea;
+}
+
+function renderAdvisorHistory() {
+    const welcomeHtml = `
+        <div class="advisor-fs-welcome">
+            <div class="advisor-fs-avatar">🤖</div>
+            <div class="advisor-fs-welcome-text">
+                <h3>Hi there! I'm your Trackify Financial Coach.</h3>
+                <p>I can see your real-time spending, savings goals, and budget categories. Ask me anything — from cutting costs to hitting your targets faster.</p>
+            </div>
+        </div>
+    `;
+    const drawerWelcomeHtml = `
+        <div class="advisor-welcome-msg">
+            <div class="advisor-avatar">🤖</div>
+            <p>Hi there! I am your <strong>Trackify Financial Coach</strong>. I can analyze your MTD spending, keep track of your active savings goals, and help you build healthy budget habits. How can I help you today?</p>
+        </div>
+    `;
+
+    let msgHtml = '';
+    chatHistory.forEach(msg => {
+        const isUser = msg.role === 'user';
+        msgHtml += `
+            <div class="chat-bubble ${isUser ? 'user' : 'model'}">
+                ${escapeHtml(msg.content)}
+            </div>
+        `;
+    });
+
+    // Update drawer
+    const drawerArea = document.getElementById('advisor-chat-area');
+    if (drawerArea) {
+        drawerArea.innerHTML = drawerWelcomeHtml + msgHtml;
+        scrollToBottom(drawerArea);
+    }
+
+    // Update full-screen tab
+    const fsArea = document.getElementById('advisor-fs-chat-area');
+    if (fsArea) {
+        fsArea.innerHTML = welcomeHtml + msgHtml;
+        scrollToBottom(fsArea);
+    }
+}
+
+function scrollToBottom(element) {
+    setTimeout(() => {
+        element.scrollTop = element.scrollHeight;
+    }, 50);
+}
+
+function showTypingIndicator() {
+    const chatArea = getActiveChatArea();
+    if (!chatArea) return;
+    // Remove any existing indicator first
+    const existing = document.getElementById('advisor-typing-indicator');
+    if (existing) existing.remove();
+
+    const indicator = document.createElement('div');
+    indicator.className = 'typing-indicator-container';
+    indicator.id = 'advisor-typing-indicator';
+    indicator.innerHTML = `
+        <div class="typing-dot"></div>
+        <div class="typing-dot"></div>
+        <div class="typing-dot"></div>
+    `;
+    chatArea.appendChild(indicator);
+    scrollToBottom(chatArea);
+}
+
+function hideTypingIndicator() {
+    const indicator = document.getElementById('advisor-typing-indicator');
+    if (indicator) {
+        indicator.remove();
+    }
+}
+
+function initAdvisorEvents() {
+    // Drawer elements
+    const btnFloat = document.getElementById('btn-advisor-float');
+    const btnClose = document.getElementById('btn-close-drawer');
+    const backdrop = document.getElementById('advisor-drawer-backdrop');
+    const drawer = document.getElementById('advisor-drawer');
+
+    // Drawer chat form (side popup, used on non-advisor tabs)
+    const chatForm = document.getElementById('advisor-chat-form');
+    const chatInput = document.getElementById('advisor-chat-input');
+    const btnClear = document.getElementById('btn-clear-chat');
+    const btnMic = document.getElementById('btn-advisor-mic');
+
+    // Full-screen chat form
+    const fsForm = document.getElementById('advisor-fs-form');
+    const fsInput = document.getElementById('advisor-fs-input');
+    const btnFsClear = document.getElementById('btn-fs-clear-chat');
+    const btnFsMic = document.getElementById('btn-fs-mic');
+
+    // ---- Drawer Toggles ----
+    const openDrawer = () => {
+        if (drawer && backdrop) {
+            drawer.classList.add('active');
+            backdrop.classList.add('active');
+            fetchAdvisorHistory();
+        }
+    };
+
+    const closeDrawer = () => {
+        if (drawer && backdrop) {
+            drawer.classList.remove('active');
+            backdrop.classList.remove('active');
+        }
+    };
+
+    // Float button (visible on all tabs except advisor-tab) opens drawer
+    if (btnFloat) btnFloat.addEventListener('click', openDrawer);
+    if (btnClose) btnClose.addEventListener('click', closeDrawer);
+    if (backdrop) backdrop.addEventListener('click', closeDrawer);
+
+    // ---- Shared submit logic ----
+    const sendMessage = async (message, inputEl) => {
+        if (!message) return;
+        inputEl.value = '';
+
+        chatHistory.push({ role: 'user', content: message });
+        renderAdvisorHistory();
+        showTypingIndicator();
+
+        try {
+            const response = await apiCall('/api/advisor/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message })
+            });
+            hideTypingIndicator();
+            if (response.ok) {
+                const result = await response.json();
+                chatHistory.push({ role: 'model', content: result.reply });
+                renderAdvisorHistory();
+            } else {
+                const errRes = await response.json();
+                showToast(errRes.error || 'Rate limit exceeded or error occurred.', 'error');
+            }
+        } catch (err) {
+            hideTypingIndicator();
+            console.error(err);
+            showToast('Connection error to financial advisor service', 'error');
+        }
+    };
+
+    // ---- Shared clear logic ----
+    const clearMemory = async () => {
+        if (confirm('Clear your entire conversation memory? This cannot be undone.')) {
+            try {
+                const response = await apiCall('/api/advisor/history', { method: 'DELETE' });
+                if (response.ok) {
+                    showToast('Advisor memory cleared!', 'success');
+                    chatHistory = [];
+                    renderAdvisorHistory();
+                } else {
+                    showToast('Failed to clear memory', 'error');
+                }
+            } catch (err) {
+                console.error(err);
+                showToast('Connection error', 'error');
+            }
+        }
+    };
+
+    // ---- Drawer form submit ----
+    if (chatForm) {
+        chatForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            sendMessage(chatInput.value.trim(), chatInput);
+        });
+    }
+
+    if (btnClear) btnClear.addEventListener('click', clearMemory);
+
+    // ---- Full-screen form submit ----
+    if (fsForm) {
+        fsForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            sendMessage(fsInput.value.trim(), fsInput);
+        });
+    }
+
+    if (btnFsClear) btnFsClear.addEventListener('click', clearMemory);
+
+    // ---- Voice: shared mic factory ----
+    const setupMic = (btn, inputEl) => {
+        if (!btn || !inputEl) return;
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) { btn.style.display = 'none'; return; }
+
+        const recognition = new SpeechRecognition();
+        recognition.continuous = false;
+        recognition.lang = 'en-US';
+        recognition.interimResults = false;
+        recognition.maxAlternatives = 1;
+
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (btn.classList.contains('recording')) {
+                recognition.stop();
+            } else {
+                try { recognition.start(); } catch (ex) { console.error(ex); }
+            }
+        });
+
+        recognition.onstart = () => {
+            btn.classList.add('recording');
+            inputEl.placeholder = 'Listening...';
+        };
+        recognition.onerror = () => {
+            btn.classList.remove('recording');
+            inputEl.placeholder = '';
+        };
+        recognition.onend = () => {
+            btn.classList.remove('recording');
+            inputEl.placeholder = '';
+        };
+        recognition.onresult = (event) => {
+            const transcript = event.results[0][0].transcript;
+            if (transcript) { inputEl.value = transcript; inputEl.focus(); }
+        };
+    };
+
+    setupMic(btnMic, chatInput);
+    setupMic(btnFsMic, fsInput);
 }
 
 // ==========================================================================
@@ -626,7 +1080,16 @@ function initNavigation() {
 
 function switchTab(tabId) {
     state.activeTab = tabId;
-    
+
+    // Toggle body class so the float button hides on the advisor tab
+    if (tabId === 'advisor-tab') {
+        document.body.classList.add('advisor-tab-active');
+        // Refresh history for the full-screen view
+        fetchAdvisorHistory();
+    } else {
+        document.body.classList.remove('advisor-tab-active');
+    }
+
     // Toggle nav buttons
     elements.navButtons.forEach(btn => {
         if (btn.getAttribute('data-tab') === tabId) {
@@ -635,7 +1098,7 @@ function switchTab(tabId) {
             btn.classList.remove('active');
         }
     });
-    
+
     // Toggle content sections
     elements.tabContents.forEach(content => {
         if (content.id === tabId) {
@@ -644,12 +1107,14 @@ function switchTab(tabId) {
             content.classList.remove('active');
         }
     });
-    
-    // Re-render charts when switching to dashboard to ensure SVG dimensions are computed correctly
+
+    // Re-render charts when switching to dashboard
     if (tabId === 'dashboard') {
         renderCharts();
     }
 }
+
+
 
 // ==========================================================================
 // FORM SWITCHERS & CALCULATORS
