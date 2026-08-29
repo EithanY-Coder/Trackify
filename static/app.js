@@ -633,6 +633,7 @@ async function fetchSessions() {
         if (response.ok) {
             sessions = await response.json();
             renderSessionsList();
+            renderDrawerSessionSelector();
         }
     } catch (err) {
         console.error('Failed to load sessions:', err);
@@ -650,6 +651,7 @@ async function createSession() {
             const session = await response.json();
             sessions.unshift(session);
             renderSessionsList();
+            renderDrawerSessionSelector();
             await switchSession(session.id);
         }
     } catch (err) {
@@ -659,13 +661,15 @@ async function createSession() {
 }
 
 async function deleteSession(sessionId, e) {
-    e.stopPropagation();
+    if (e) {
+        e.stopPropagation();
+        e.preventDefault();
+    }
     if (!confirm('Delete this conversation? This cannot be undone.')) return;
     try {
         const response = await apiCall(`/api/advisor/sessions/${sessionId}`, { method: 'DELETE' });
         if (response.ok) {
             sessions = sessions.filter(s => s.id !== sessionId);
-            renderSessionsList();
             if (currentSessionId === sessionId) {
                 // Switch to next session or clear
                 if (sessions.length > 0) {
@@ -677,7 +681,12 @@ async function deleteSession(sessionId, e) {
                     updateSessionTitle('New Chat');
                 }
             }
+            renderSessionsList();
+            renderDrawerSessionSelector();
             showToast('Conversation deleted.', 'success');
+        } else {
+            const errRes = await response.json().catch(() => ({}));
+            showToast(errRes.error || 'Could not delete conversation.', 'error');
         }
     } catch (err) {
         console.error(err);
@@ -688,6 +697,7 @@ async function deleteSession(sessionId, e) {
 async function switchSession(sessionId) {
     currentSessionId = sessionId;
     renderSessionsList(); // update active highlight immediately
+    renderDrawerSessionSelector();
     await fetchAdvisorHistory();
     // Update header title
     const session = sessions.find(s => s.id === sessionId);
@@ -697,6 +707,24 @@ async function switchSession(sessionId) {
 function updateSessionTitle(title) {
     const titleEl = document.getElementById('advisor-fs-session-title');
     if (titleEl) titleEl.textContent = title;
+}
+
+function renderDrawerSessionSelector() {
+    const select = document.getElementById('advisor-drawer-session-select');
+    if (!select) return;
+
+    if (sessions.length === 0) {
+        select.innerHTML = '<option value="">No conversations</option>';
+        select.disabled = true;
+        return;
+    }
+
+    select.disabled = false;
+    select.innerHTML = sessions.map(s => {
+        const isSelected = s.id === currentSessionId ? 'selected' : '';
+        const shortTitle = s.title.length > 25 ? s.title.slice(0, 25) + '…' : s.title;
+        return `<option value="${s.id}" ${isSelected}>${escapeHtml(shortTitle)}</option>`;
+    }).join('');
 }
 
 function renderSessionsList() {
@@ -722,7 +750,7 @@ function renderSessionsList() {
                     <div class="advisor-session-title">${escapeHtml(s.title)}</div>
                     <div class="advisor-session-date">${date}</div>
                 </div>
-                <button class="advisor-session-delete" data-session-id="${s.id}" title="Delete conversation">
+                <button type="button" class="advisor-session-delete" data-session-id="${s.id}" title="Delete conversation">
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <polyline points="3 6 5 6 21 6"/>
                         <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
@@ -734,15 +762,19 @@ function renderSessionsList() {
 
     // Bind click events
     list.querySelectorAll('.advisor-session-item').forEach(item => {
-        item.addEventListener('click', () => {
+        item.addEventListener('click', (e) => {
+            // Prevent switching if the delete button was clicked
+            if (e.target.closest('.advisor-session-delete')) return;
             const id = parseInt(item.getAttribute('data-session-id'));
-            if (id !== currentSessionId) switchSession(id);
+            if (id && id !== currentSessionId) switchSession(id);
         });
     });
     list.querySelectorAll('.advisor-session-delete').forEach(btn => {
         btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            e.preventDefault();
             const id = parseInt(btn.getAttribute('data-session-id'));
-            deleteSession(id, e);
+            if (id) deleteSession(id, e);
         });
     });
 }
@@ -855,6 +887,8 @@ function initAdvisorEvents() {
     const chatInput = document.getElementById('advisor-chat-input');
     const btnClear = document.getElementById('btn-clear-chat');
     const btnMic = document.getElementById('btn-advisor-mic');
+    const btnDrawerNewChat = document.getElementById('btn-drawer-new-chat');
+    const drawerSessionSelect = document.getElementById('advisor-drawer-session-select');
 
     // Full-screen elements
     const fsForm = document.getElementById('advisor-fs-form');
@@ -864,11 +898,23 @@ function initAdvisorEvents() {
     const btnNewChat = document.getElementById('btn-new-chat');
 
     // ---- Drawer ----
-    const openDrawer = () => {
+    const openDrawer = async () => {
         if (drawer && backdrop) {
             drawer.classList.add('active');
             backdrop.classList.add('active');
-            fetchAdvisorHistory();
+            await fetchSessions();
+            if (sessions.length > 0) {
+                if (!currentSessionId) {
+                    await switchSession(sessions[0].id);
+                } else {
+                    renderDrawerSessionSelector();
+                    fetchAdvisorHistory();
+                }
+            } else {
+                renderDrawerSessionSelector();
+                chatHistory = [];
+                renderAdvisorHistory();
+            }
         }
     };
     const closeDrawer = () => {
@@ -881,7 +927,28 @@ function initAdvisorEvents() {
     if (btnClose) btnClose.addEventListener('click', closeDrawer);
     if (backdrop) backdrop.addEventListener('click', closeDrawer);
 
-    // ---- New Chat ----
+    // ---- Drawer Session Selector ----
+    if (drawerSessionSelect) {
+        drawerSessionSelect.addEventListener('change', async (e) => {
+            const val = parseInt(e.target.value);
+            if (val && val !== currentSessionId) {
+                await switchSession(val);
+            }
+        });
+    }
+
+    // ---- Drawer "New Chat" -> redirects to Full-Screen AI Advisor tab ----
+    if (btnDrawerNewChat) {
+        btnDrawerNewChat.addEventListener('click', async () => {
+            closeDrawer();
+            switchTab('advisor-tab');
+            await createSession();
+            const input = document.getElementById('advisor-fs-input');
+            if (input) input.focus();
+        });
+    }
+
+    // ---- Full-Screen New Chat ----
     if (btnNewChat) btnNewChat.addEventListener('click', createSession);
 
     // ---- Shared send logic ----

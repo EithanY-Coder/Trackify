@@ -2233,28 +2233,56 @@ textarea#ai-prompt-input:focus {
 .drawer-title-area {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
+    gap: 0.6rem;
+    min-width: 0;
+    flex: 1;
+    margin-right: 0.5rem;
 }
 
-.drawer-title-area h3 {
-    margin: 0;
-    font-size: 1.25rem;
-    font-weight: 700;
+.drawer-session-picker-wrap {
+    min-width: 0;
+    flex: 1;
+}
+
+.drawer-session-select {
+    width: 100%;
+    max-width: 180px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 8px;
+    color: #ffffff;
+    padding: 0.35rem 0.6rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    text-overflow: ellipsis;
+    outline: none;
+    transition: var(--transition-smooth);
+}
+
+.drawer-session-select:focus {
+    border-color: var(--color-indigo);
+    background: rgba(255, 255, 255, 0.12);
+}
+
+.drawer-session-select option {
+    background: #0f172a;
     color: #ffffff;
 }
 
 .drawer-actions {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
+    gap: 0.5rem;
+    flex-shrink: 0;
 }
 
 .drawer-action-btn {
-    background: none;
-    border: none;
-    color: rgba(255, 255, 255, 0.5);
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.7);
     cursor: pointer;
-    padding: 0.5rem;
+    padding: 0.45rem 0.55rem;
     border-radius: var(--border-radius-sm);
     display: flex;
     align-items: center;
@@ -2263,8 +2291,14 @@ textarea#ai-prompt-input:focus {
 }
 
 .drawer-action-btn:hover {
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(255, 255, 255, 0.12);
+    color: #ffffff;
+}
+
+.drawer-action-btn#btn-clear-chat:hover {
+    background: rgba(239, 68, 68, 0.15);
     color: var(--color-rose);
+    border-color: rgba(239, 68, 68, 0.3);
 }
 
 .close-drawer-btn {
@@ -2602,18 +2636,27 @@ body.advisor-tab-active .advisor-floating-trigger {
     border-radius: 6px;
     background: transparent;
     border: none;
-    color: #c0c9db;
+    color: #9aaabb;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    opacity: 0;
+    opacity: 0.4;
     transition: all 0.15s ease;
     flex-shrink: 0;
+    position: relative;
+    z-index: 5;
 }
 
 .advisor-session-item:hover .advisor-session-delete {
     opacity: 1;
+}
+
+.advisor-session-delete svg,
+.advisor-session-delete path,
+.advisor-session-delete line,
+.advisor-session-delete polyline {
+    pointer-events: none;
 }
 
 .advisor-session-delete:hover {
