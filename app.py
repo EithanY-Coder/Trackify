@@ -1,4 +1,4 @@
-# pyrefly: ignore [missing-import]
+# pyrefly: ignore [missing-import] - Trackify Flask Server
 from flask import Flask, render_template, jsonify, request
 import database
 import sqlite3
@@ -9,6 +9,11 @@ import json
 import jwt
 from dotenv import load_dotenv
 import ssl
+from google import genai
+from google.genai import types
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+from flask_limiter.errors import RateLimitExceeded
 
 # Bypass SSL verification for local development (macOS cert issue)
 ssl._create_default_https_context = ssl._create_unverified_context
@@ -17,6 +22,17 @@ ssl._create_default_https_context = ssl._create_unverified_context
 load_dotenv()
 
 app = Flask(__name__)
+
+# Initialize rate limiting
+limiter = Limiter(
+    key_func=get_remote_address,
+    app=app,
+    default_limits=[]
+)
+
+@app.errorhandler(RateLimitExceeded)
+def _rate_limit_exceeded_responder(e):
+    return jsonify({"error": f"Rate limit exceeded: 5 requests per minute allowed."}), 429
 
 # Initialize database
 database.init_db()
@@ -32,6 +48,9 @@ jwks_headers = {
 jwks_client = jwt.PyJWKClient(JWKS_URL, headers=jwks_headers)
 
 def get_auth_user():
+    if app.config.get('TESTING') and request.headers.get('X-Test-User-Id'):
+        return request.headers.get('X-Test-User-Id')
+        
     auth_header = request.headers.get('Authorization')
     if not auth_header or not auth_header.startswith('Bearer '):
         return None
@@ -499,6 +518,325 @@ def update_transaction(t_id):
             'tax_rate': tax_rate,
             'gross_amount': gross_amount
         })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        conn.close()
+
+# ----------------- SAVINGS GOALS API -----------------
+
+@app.route('/api/goals', methods=['GET'])
+def get_goals():
+    user_id = get_auth_user()
+    if not user_id:
+        return jsonify({'error': 'Unauthorized. Please log in.'}), 401
+        
+    conn = database.get_db_connection()
+    try:
+        goals = conn.execute(
+            'SELECT * FROM goals WHERE user_id = ? ORDER BY id DESC',
+            (user_id,)
+        ).fetchall()
+        return jsonify([dict(g) for g in goals])
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        conn.close()
+
+@app.route('/api/goals', methods=['POST'])
+def add_goal():
+    user_id = get_auth_user()
+    if not user_id:
+        return jsonify({'error': 'Unauthorized. Please log in.'}), 401
+        
+    data = request.get_json() or {}
+    title = data.get('title', '').strip()
+    target_amount_raw = data.get('target_amount')
+    deadline = data.get('deadline', '').strip()
+    
+    if not title:
+        return jsonify({'error': 'Goal title is required.'}), 400
+    if not deadline:
+        return jsonify({'error': 'Deadline is required.'}), 400
+        
+    try:
+        target_amount = float(target_amount_raw)
+        if target_amount <= 0:
+            return jsonify({'error': 'Target amount must be greater than zero.'}), 400
+    except (ValueError, TypeError):
+        return jsonify({'error': 'Target amount must be a number.'}), 400
+        
+    conn = database.get_db_connection()
+    try:
+        cursor = conn.execute('''
+            INSERT INTO goals (user_id, title, target_amount, saved_amount, deadline)
+            VALUES (?, ?, ?, 0.0, ?)
+        ''', (user_id, title, target_amount, deadline))
+        conn.commit()
+        new_id = cursor.lastrowid
+        return jsonify({
+            'id': new_id,
+            'user_id': user_id,
+            'title': title,
+            'target_amount': target_amount,
+            'saved_amount': 0.0,
+            'deadline': deadline
+        }), 201
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        conn.close()
+
+@app.route('/api/goals/<int:g_id>', methods=['PATCH'])
+def update_goal(g_id):
+    user_id = get_auth_user()
+    if not user_id:
+        return jsonify({'error': 'Unauthorized. Please log in.'}), 401
+        
+    data = request.get_json() or {}
+    
+    conn = database.get_db_connection()
+    try:
+        # Check ownership
+        goal = conn.execute('SELECT * FROM goals WHERE id = ? AND user_id = ?', (g_id, user_id)).fetchone()
+        if not goal:
+            return jsonify({'error': 'Goal not found.'}), 404
+            
+        update_fields = []
+        params = []
+        
+        if 'title' in data:
+            title = data['title'].strip()
+            if not title:
+                return jsonify({'error': 'Goal title cannot be empty.'}), 400
+            update_fields.append('title = ?')
+            params.append(title)
+            
+        if 'target_amount' in data:
+            try:
+                target_val = float(data['target_amount'])
+                if target_val <= 0:
+                    return jsonify({'error': 'Target amount must be greater than zero.'}), 400
+                update_fields.append('target_amount = ?')
+                params.append(target_val)
+            except ValueError:
+                return jsonify({'error': 'Target amount must be a number.'}), 400
+                
+        if 'saved_amount' in data:
+            try:
+                saved_val = float(data['saved_amount'])
+                if saved_val < 0:
+                    return jsonify({'error': 'Saved amount cannot be negative.'}), 400
+                update_fields.append('saved_amount = ?')
+                params.append(saved_val)
+            except ValueError:
+                return jsonify({'error': 'Saved amount must be a number.'}), 400
+                
+        if 'deadline' in data:
+            deadline = data['deadline'].strip()
+            if not deadline:
+                return jsonify({'error': 'Deadline cannot be empty.'}), 400
+            update_fields.append('deadline = ?')
+            params.append(deadline)
+            
+        if not update_fields:
+            return jsonify({'error': 'No fields provided for update.'}), 400
+            
+        params.extend([g_id, user_id])
+        query = f"UPDATE goals SET {', '.join(update_fields)} WHERE id = ? AND user_id = ?"
+        conn.execute(query, params)
+        conn.commit()
+        
+        # Get updated goal
+        updated_goal = conn.execute('SELECT * FROM goals WHERE id = ? AND user_id = ?', (g_id, user_id)).fetchone()
+        return jsonify(dict(updated_goal))
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        conn.close()
+
+def get_user_financial_profile(user_id):
+    conn = database.get_db_connection()
+    try:
+        current_month_prefix = datetime.date.today().strftime('%Y-%m-')
+        
+        # MTD spend
+        row_spent = conn.execute('''
+            SELECT SUM(amount) FROM transactions 
+            WHERE user_id = ? AND type = 'expense' AND date LIKE ?
+        ''', (user_id, current_month_prefix + '%')).fetchone()
+        mtd_spent = row_spent[0] if row_spent and row_spent[0] is not None else 0.0
+        
+        # Category breakdown
+        cat_rows = conn.execute('''
+            SELECT category_name, SUM(amount) FROM transactions 
+            WHERE user_id = ? AND type = 'expense' AND date LIKE ?
+            GROUP BY category_name
+        ''', (user_id, current_month_prefix + '%')).fetchall()
+        category_breakdown = {r['category_name']: r[1] for r in cat_rows}
+        
+        # Active goals
+        goal_rows = conn.execute('''
+            SELECT title, target_amount, saved_amount, deadline FROM goals 
+            WHERE user_id = ?
+        ''', (user_id,)).fetchall()
+        goals_list = [
+            f"- {r['title']}: Target ${r['target_amount']:.2f}, Saved ${r['saved_amount']:.2f}, Deadline: {r['deadline']}"
+            for r in goal_rows
+        ]
+        
+        goals_str = "\n".join(goals_list) if goals_list else "No active savings goals."
+        cat_str = ", ".join([f"{k}: ${v:.2f}" for k, v in category_breakdown.items()]) if category_breakdown else "No spending recorded this month."
+        
+        profile = f"""--- CURRENT USER FINANCIAL PROFILE ---
+Month-to-Date Spend: ${mtd_spent:.2f}
+Spending by Category: {cat_str}
+Active Savings Goals:
+{goals_str}
+-------------------------------------"""
+        return profile
+    finally:
+        conn.close()
+
+# ----------------- AI ADVISOR API -----------------
+
+@app.route('/api/advisor/chat', methods=['POST'])
+@limiter.limit("5 per minute")
+def advisor_chat():
+    user_id = get_auth_user()
+    if not user_id:
+        return jsonify({'error': 'Unauthorized. Please log in.'}), 401
+        
+    # Load API Key
+    api_key = os.environ.get('GEMINI_API_KEY')
+    if api_key:
+        api_key = api_key.strip().strip('"').strip("'")
+    
+    if not api_key:
+        return jsonify({
+            'error': 'Gemini API key is not configured. Please add a `GEMINI_API_KEY=your_key` line to your `.env` file.'
+        }), 400
+
+    data = request.get_json() or {}
+    message = data.get('message', '').strip()
+    if not message:
+        return jsonify({'error': 'Message content is required.'}), 400
+
+    conn = database.get_db_connection()
+    try:
+        # 1. Fetch live financial snapshot
+        financial_profile = get_user_financial_profile(user_id)
+
+        # 2. Get last 15 messages for history context
+        history_rows = conn.execute('''
+            SELECT role, content FROM chat_messages 
+            WHERE user_id = ? 
+            ORDER BY created_at ASC, id ASC
+            LIMIT 15
+        ''', (user_id,)).fetchall()
+
+        # 3. Format history for Google GenAI SDK (types.Content)
+        contents = []
+        for row in history_rows:
+            # Map role: db role is either 'user' or 'model'
+            contents.append(
+                types.Content(
+                    role=row['role'],
+                    parts=[types.Part.from_text(text=row['content'])]
+                )
+            )
+
+        # Append new user message
+        contents.append(
+            types.Content(
+                role="user",
+                parts=[types.Part.from_text(text=message)]
+            )
+        )
+
+        # 4. Initialize Gemini client & configure instructions
+        client = genai.Client(api_key=api_key)
+        
+        system_instruction = f"""You are 'Trackify Advisor', a sharp, empathetic, and encouraging personal financial coach for teens and students. 
+
+CRITICAL FORMATTING RULES:
+1. NEVER use markdown formatting. Do NOT output asterisks (such as '**' for bolding or '*' for lists), hashes, or markdown bullet symbols.
+2. Use clean, plain text with double newlines between paragraphs for spacing.
+3. Keep responses extremely concise (maximum 3-4 sentences total), organized, and highly practical.
+4. For lists, use simple numbers (1., 2., 3.) or clean emojis (like 📌, 💡, 💵) with plain text spacing.
+
+Base all your advice on the user's real-time financial profile provided below. Help them set realistic goals, break down weekly savings targets, celebrate progress, and politely highlight areas where they can cut back.
+
+{financial_profile}"""
+
+        config = types.GenerateContentConfig(
+            system_instruction=system_instruction
+        )
+
+        # 5. Call Gemini 3.6 Flash
+        response = client.models.generate_content(
+            model='gemini-3.6-flash',
+            contents=contents,
+            config=config
+        )
+
+        # Clean reply text to strip any stray markdown asterisks/headers
+        reply_text = response.text or ""
+        reply_text = reply_text.replace('**', '').replace('###', '').replace('##', '')
+        # Replace markdown list markers with clean bullet symbols
+        reply_text = reply_text.replace('\n* ', '\n• ').replace('\n- ', '\n• ')
+
+        # 6. Save dialog to chat_messages in DB
+        # User message
+        conn.execute('''
+            INSERT INTO chat_messages (user_id, role, content)
+            VALUES (?, 'user', ?)
+        ''', (user_id, message))
+        
+        # Model message
+        conn.execute('''
+            INSERT INTO chat_messages (user_id, role, content)
+            VALUES (?, 'model', ?)
+        ''', (user_id, reply_text))
+        
+        conn.commit()
+
+        return jsonify({'reply': reply_text})
+    except Exception as e:
+        return jsonify({'error': f'Failed to process with AI: {str(e)}'}), 500
+    finally:
+        conn.close()
+
+@app.route('/api/advisor/history', methods=['GET'])
+def get_advisor_history():
+    user_id = get_auth_user()
+    if not user_id:
+        return jsonify({'error': 'Unauthorized. Please log in.'}), 401
+        
+    conn = database.get_db_connection()
+    try:
+        history = conn.execute('''
+            SELECT role, content, created_at FROM chat_messages 
+            WHERE user_id = ? 
+            ORDER BY created_at ASC, id ASC
+        ''', (user_id,)).fetchall()
+        return jsonify([dict(h) for h in history])
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        conn.close()
+
+@app.route('/api/advisor/history', methods=['DELETE'])
+def delete_advisor_history():
+    user_id = get_auth_user()
+    if not user_id:
+        return jsonify({'error': 'Unauthorized. Please log in.'}), 401
+        
+    conn = database.get_db_connection()
+    try:
+        conn.execute('DELETE FROM chat_messages WHERE user_id = ?', (user_id,))
+        conn.commit()
+        return jsonify({'success': True, 'message': 'Conversation history cleared.'})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
     finally:

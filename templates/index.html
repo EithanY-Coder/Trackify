@@ -109,10 +109,17 @@
                 </button>
                 <button class="nav-btn" data-tab="categories-tab">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
-                        <line x1="7" y1="7" x2="7.01" y2="7"/>
+                        <polygon points="12 2 2 7 12 12 22 7 12 2"/>
+                        <polyline points="2 17 12 22 22 17"/>
+                        <polyline points="2 12 12 17 22 12"/>
                     </svg>
                     Categories
+                </button>
+                <button class="nav-btn" data-tab="advisor-tab" id="btn-toggle-advisor" type="button">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                    </svg>
+                    AI Advisor
                 </button>
                 <button class="nav-btn logout-btn" id="sidebar-logout-btn" style="margin-top: auto; color: var(--color-rose); border: 1px solid rgba(239, 68, 68, 0.2); border-radius: var(--border-radius-md);">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -235,6 +242,19 @@
                         </div>
                         <div class="category-list-scroll" id="dashboard-category-list">
                             <!-- Injected via Javascript -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Savings Goals Section -->
+                <div class="dashboard-grid">
+                    <div class="card glass span-3">
+                        <div class="card-header">
+                            <h3>Savings Goals</h3>
+                            <button class="view-all-link" id="btn-add-goal-trigger">+ Add Goal</button>
+                        </div>
+                        <div class="goals-container" id="dashboard-goals-list" style="display: flex; flex-direction: column; gap: 1.25rem; padding: 0.5rem 0;">
+                            <div class="no-data-msg">No savings goals set yet.</div>
                         </div>
                     </div>
                 </div>
@@ -625,6 +645,66 @@
                     </div>
                 </div>
             </section>
+
+            <!-- TAB 5: AI Advisor (Full Screen) -->
+            <section id="advisor-tab" class="tab-content">
+                <div class="advisor-fullscreen">
+                    <!-- Header -->
+                    <div class="advisor-fs-header">
+                        <div class="advisor-fs-title">
+                            <div class="advisor-fs-icon">
+                                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                                </svg>
+                            </div>
+                            <div>
+                                <h2>AI Financial Advisor</h2>
+                                <p>Powered by Gemini &mdash; your personal money coach</p>
+                            </div>
+                        </div>
+                        <button class="advisor-fs-clear-btn" id="btn-fs-clear-chat" title="Clear conversation">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="3 6 5 6 21 6"/>
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                                <line x1="10" y1="11" x2="10" y2="17"/>
+                                <line x1="14" y1="11" x2="14" y2="17"/>
+                            </svg>
+                            Clear Memory
+                        </button>
+                    </div>
+
+                    <!-- Chat messages area -->
+                    <div class="advisor-fs-chat" id="advisor-fs-chat-area">
+                        <div class="advisor-fs-welcome">
+                            <div class="advisor-fs-avatar">🤖</div>
+                            <div class="advisor-fs-welcome-text">
+                                <h3>Hi there! I'm your Trackify Financial Coach.</h3>
+                                <p>I can see your real-time spending, savings goals, and budget categories. Ask me anything &mdash; from cutting costs to hitting your targets faster.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Input bar -->
+                    <form class="advisor-fs-input-bar" id="advisor-fs-form">
+                        <button type="button" class="advisor-fs-mic" id="btn-fs-mic" title="Speak your question">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                                <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                                <line x1="12" y1="19" x2="12" y2="23"/>
+                                <line x1="8" y1="23" x2="16" y2="23"/>
+                            </svg>
+                        </button>
+                        <input type="text" id="advisor-fs-input" placeholder="Ask about your budget, goals, or spending habits..." autocomplete="off">
+                        <button type="submit" class="advisor-fs-send" id="btn-fs-send">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                <line x1="22" y1="2" x2="11" y2="13"/>
+                                <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                            </svg>
+                            Send
+                        </button>
+                    </form>
+                </div>
+            </section>
         </main>
     </div>
 
@@ -801,6 +881,117 @@
             </div>
         </div>
     </div>
+
+    <!-- Add Goal Modal -->
+    <div id="add-goal-modal" class="modal-overlay">
+        <div class="modal-content glass">
+            <div class="modal-header">
+                <h2>Create Savings Goal</h2>
+                <button type="button" class="close-modal-btn" id="btn-close-add-goal-modal">&times;</button>
+            </div>
+            <form id="add-goal-form">
+                <div class="form-group">
+                    <label for="goal-title">Goal Name</label>
+                    <input type="text" id="goal-title" placeholder="e.g. New Laptop" required>
+                </div>
+                <div class="form-group" style="margin-top: 1rem;">
+                    <label for="goal-target">Target Amount ($)</label>
+                    <input type="number" id="goal-target" step="0.01" min="0.01" placeholder="0.00" required>
+                </div>
+                <div class="form-group" style="margin-top: 1rem;">
+                    <label for="goal-deadline">Target Date</label>
+                    <input type="date" id="goal-deadline" required>
+                </div>
+                <div class="modal-actions" style="margin-top: 1.5rem;">
+                    <button type="button" class="cancel-btn" id="btn-cancel-add-goal">Cancel</button>
+                    <button type="submit" class="submit-btn" style="background: var(--color-indigo); color: white;">Save Goal</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Update Goal Progress Modal -->
+    <div id="update-goal-modal" class="modal-overlay">
+        <div class="modal-content glass">
+            <div class="modal-header">
+                <h2>Update Goal Progress</h2>
+                <button type="button" class="close-modal-btn" id="btn-close-update-goal-modal">&times;</button>
+            </div>
+            <form id="update-goal-form">
+                <input type="hidden" id="update-goal-id">
+                <div class="form-group">
+                    <label for="update-goal-title">Goal Name</label>
+                    <input type="text" id="update-goal-title" readonly style="opacity: 0.7;">
+                </div>
+                <div class="form-group" style="margin-top: 1rem;">
+                    <label for="update-goal-saved">Current Saved Amount ($)</label>
+                    <input type="number" id="update-goal-saved" step="0.01" min="0" placeholder="0.00" required>
+                </div>
+                <div class="modal-actions" style="margin-top: 1.5rem;">
+                    <button type="button" class="cancel-btn" id="btn-cancel-update-goal">Cancel</button>
+                    <button type="submit" class="submit-btn" style="background: var(--color-indigo); color: white;">Update Saved</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Floating Advisor Trigger -->
+    <button class="advisor-floating-trigger" id="btn-advisor-float" aria-label="Open AI Advisor">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+        </svg>
+    </button>
+
+    <!-- AI ADVISOR DRAWER -->
+    <div class="advisor-drawer" id="advisor-drawer">
+        <div class="drawer-header">
+            <div class="drawer-title-area">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color: var(--color-indigo);">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                </svg>
+                <h3>AI Advisor</h3>
+            </div>
+            <div class="drawer-actions">
+                <button class="drawer-action-btn" id="btn-clear-chat" title="Clear Memory">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="3 6 5 6 21 6"/>
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                        <line x1="10" y1="11" x2="10" y2="17"/>
+                        <line x1="14" y1="11" x2="14" y2="17"/>
+                    </svg>
+                </button>
+                <button class="close-drawer-btn" id="btn-close-drawer">&times;</button>
+            </div>
+        </div>
+        
+        <div class="drawer-chat-area" id="advisor-chat-area">
+            <div class="advisor-welcome-msg">
+                <div class="advisor-avatar">🤖</div>
+                <p>Hi there! I am your <strong>Trackify Financial Coach</strong>. I can analyze your MTD spending, keep track of your active savings goals, and help you build healthy budget habits. How can I help you today?</p>
+            </div>
+        </div>
+        
+        <form class="drawer-input-area" id="advisor-chat-form">
+            <button type="button" class="mic-btn" id="btn-advisor-mic" title="Speak to type">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                    <line x1="12" y1="19" x2="12" y2="23"/>
+                    <line x1="8" y1="23" x2="16" y2="23"/>
+                </svg>
+            </button>
+            <input type="text" id="advisor-chat-input" placeholder="Ask about your budget or goals..." required autocomplete="off">
+            <button type="submit" class="chat-send-btn" id="btn-chat-send" title="Send Message">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="22" y1="2" x2="11" y2="13"/>
+                    <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                </svg>
+            </button>
+        </form>
+    </div>
+
+    <!-- Backdrop overlay for drawer -->
+    <div class="drawer-backdrop" id="advisor-drawer-backdrop"></div>
 
     <!-- Notification Toast -->
     <div id="toast-container" class="toast-container"></div>
