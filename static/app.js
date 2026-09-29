@@ -129,12 +129,12 @@ document.addEventListener('DOMContentLoaded', () => {
     initAuth();
 });
 
-// Tracks the cursor over the dashboard's hero stats card and grid cards to
-// drive the CSS spotlight-hover glow (--spot-x/--spot-y, see style.css).
-// Delegated on document so it keeps working after the dashboard's cards are
-// re-rendered - nothing here depends on specific DOM node identity.
+// Tracks the cursor over every card in the app to drive the CSS
+// spotlight-hover glow (--spot-x/--spot-y, see style.css). Delegated on
+// document so it keeps working after any tab's cards are re-rendered -
+// nothing here depends on specific DOM node identity.
 function initSpotlightCards() {
-    const SPOTLIGHT_SELECTOR = '#dashboard .stats-grid-unified, #dashboard .dashboard-grid > .card';
+    const SPOTLIGHT_SELECTOR = '.stats-grid-unified, .card.glass';
     document.addEventListener('mousemove', (e) => {
         const card = e.target.closest(SPOTLIGHT_SELECTOR);
         if (!card) return;
@@ -202,6 +202,10 @@ async function initAuth() {
             // ever attached from the "no session" branch below.
             setupAuthEventListeners();
             fetchData();
+            // Dashboard starts marked active in the server-rendered HTML
+            // (never goes through switchTab() on first load), so it needs
+            // its own stagger trigger here.
+            applyTabStagger(document.getElementById('dashboard'));
         } else {
             state.currentUser = null;
             elements.appContainer.classList.add('hidden');
@@ -1249,6 +1253,49 @@ function switchTab(tabId) {
     if (tabId === 'dashboard') {
         renderCharts();
     }
+
+    // AI Advisor is a chat UI with its own message/session animations -
+    // a generic card cascade doesn't fit it, so it's the one tab skipped.
+    if (tabId !== 'advisor-tab') {
+        const tabEl = document.getElementById(tabId);
+        if (tabEl) applyTabStagger(tabEl);
+    }
+}
+
+// Cascades a newly-active tab's top-level content blocks in with a
+// staggered delay, instead of the whole tab mounting as one flat block.
+// Deliberately JS-indexed rather than an nth-child/nth-of-type CSS
+// selector - see the .stagger-item comment in style.css for why.
+// "Grid wrapper" containers (multiple cards side by side) are expanded one
+// level so each card in the row staggers individually; everything else
+// (including list-like containers such as .category-grid, which can hold
+// an unbounded number of items) is staggered as a single block so the
+// total cascade stays short regardless of how much data a user has.
+const STAGGER_GRID_WRAPPERS = ['dashboard-grid', 'log-grid', 'category-settings-container'];
+const STAGGER_STEP_SECONDS = 0.06;
+const STAGGER_MAX_STEPS = 7; // caps the delay for tabs with many top-level blocks
+
+function applyTabStagger(tabEl) {
+    const items = [];
+    Array.from(tabEl.children).forEach(child => {
+        if (STAGGER_GRID_WRAPPERS.some(cls => child.classList.contains(cls))) {
+            items.push(...Array.from(child.children));
+        } else {
+            items.push(child);
+        }
+    });
+
+    items.forEach((el, i) => {
+        // Force the animation to restart even if this exact element was
+        // already staggered once before (e.g. switching tabs and back
+        // without a full display:none reset in some edge case) -
+        // re-triggering a CSS animation requires a reflow between removing
+        // and re-adding it.
+        el.classList.remove('stagger-item');
+        void el.offsetWidth;
+        el.style.animationDelay = `${Math.min(i, STAGGER_MAX_STEPS) * STAGGER_STEP_SECONDS + 0.03}s`;
+        el.classList.add('stagger-item');
+    });
 }
 
 

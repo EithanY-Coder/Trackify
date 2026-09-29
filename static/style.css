@@ -49,6 +49,19 @@
 body {
     font-family: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     background-color: var(--bg-primary);
+    /* Ambient background: three large, blurred, very-low-opacity color
+       blobs using the app's own existing accent colors (income green,
+       AI violet, expense red) - not new colors. Fixed to the viewport, so
+       it reads as page atmosphere rather than per-section decoration.
+       .main-content has no background-color of its own, so this shows
+       through the empty space around cards; opaque cards/sidebar still
+       sit cleanly on top. This is the main fix for pages reading as
+       "empty" at rest, independent of the tab-switch stagger animation. */
+    background-image:
+        radial-gradient(650px circle at 8% 8%, rgba(16, 185, 129, 0.06), transparent 60%),
+        radial-gradient(550px circle at 92% 15%, rgba(190, 75, 219, 0.05), transparent 60%),
+        radial-gradient(750px circle at 50% 105%, rgba(239, 68, 68, 0.035), transparent 60%);
+    background-attachment: fixed;
     color: var(--text-primary);
     min-height: 100vh;
     overflow-x: hidden;
@@ -287,19 +300,16 @@ body {
     }
 }
 
-/* Dashboard: each card cascades in on its own delay instead of the whole
-   tab mounting as one flat block. Re-plays every time you land on the tab
-   (display:none resets CSS animation state), which is the point - it
-   should feel alive, not just once on first load. */
-#dashboard > .stats-grid-unified,
-#dashboard .dashboard-grid > .card {
-    animation: tabFadeIn 0.55s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+/* Universal per-tab stagger entrance. JS (applyTabStagger in app.js) sets
+   animation-delay per element by actual index - deliberately not a
+   nth-child/nth-of-type CSS selector; that approach silently matched
+   nothing the first time it was tried here (nth-of-type counts by tag,
+   not class) and shipped as dead CSS until caught. Direct JS indexing
+   can't have that bug. Re-plays every time a tab is switched to, since
+   display:none resets CSS animation state.  */
+.stagger-item {
+    animation: tabFadeIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) backwards;
 }
-#dashboard > .stats-grid-unified { animation-delay: 0.03s; }
-#dashboard-charts-grid > .card:nth-child(1) { animation-delay: 0.09s; }
-#dashboard-charts-grid > .card:nth-child(2) { animation-delay: 0.15s; }
-#dashboard-activity-grid > .card:nth-child(1) { animation-delay: 0.21s; }
-#dashboard-activity-grid > .card:nth-child(2) { animation-delay: 0.27s; }
 
 /* ==========================================================================
    STATS CARDS GRID
@@ -318,19 +328,21 @@ body {
     box-shadow: var(--box-shadow-card-hover);
 }
 
-/* Spotlight hover: a soft glow that tracks the cursor, applied to the
-   dashboard's hero stats card and its four grid cards. --spot-x/--spot-y
-   are set by a mousemove listener in app.js (initSpotlightCards). z-index:-1
-   pins the glow behind the card's own (static, non-positioned) content
-   rather than relying on paint-order ambiguity between them. */
-#dashboard .stats-grid-unified,
-#dashboard .dashboard-grid > .card {
+/* Spotlight hover: a soft glow that tracks the cursor. Applied app-wide to
+   every card (not just the dashboard) so every tab gets the same
+   interactive feel. --spot-x/--spot-y are set by a mousemove listener in
+   app.js (initSpotlightCards, delegated on document so it covers cards
+   that don't exist yet at page load). z-index:-1 pins the glow behind the
+   card's own (static, non-positioned) content rather than relying on
+   paint-order ambiguity between them. */
+.stats-grid-unified,
+.card.glass {
     position: relative;
     overflow: hidden;
 }
 
-#dashboard .stats-grid-unified::before,
-#dashboard .dashboard-grid > .card::before {
+.stats-grid-unified::before,
+.card.glass::before {
     content: '';
     position: absolute;
     inset: 0;
@@ -341,8 +353,8 @@ body {
     pointer-events: none;
 }
 
-#dashboard .stats-grid-unified:hover::before,
-#dashboard .dashboard-grid > .card:hover::before {
+.stats-grid-unified:hover::before,
+.card.glass:hover::before {
     opacity: 1;
 }
 
