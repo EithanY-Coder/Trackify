@@ -65,6 +65,38 @@ def init_db():
     ''')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_goals_user_id ON goals(user_id);')
 
+    # Create user settings table for weekly reminder preferences and timezone
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS user_settings (
+            user_id TEXT PRIMARY KEY,
+            weekly_email_enabled INTEGER NOT NULL DEFAULT 1,
+            weekly_email_timezone TEXT NOT NULL DEFAULT 'UTC',
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_user_settings_user_id ON user_settings(user_id);')
+
+    # Create weekly email send log. The UNIQUE(user_id, week_start) pair is the
+    # duplicate guard: the job "claims" a row before sending, so two overlapping
+    # runs (cron firing twice, multiple gunicorn workers) can never both send the
+    # same user the same week's recap.
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS weekly_email_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT NOT NULL,
+            week_start TEXT NOT NULL, -- YYYY-MM-DD, Monday of the summarized week
+            status TEXT NOT NULL DEFAULT 'sending', -- sending | sent | failed | skipped
+            attempts INTEGER NOT NULL DEFAULT 0,
+            provider_message_id TEXT,
+            error TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(user_id, week_start)
+        )
+    ''')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_weekly_email_log_user_id ON weekly_email_log(user_id);')
+
     # Create chat_sessions table
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS chat_sessions (
