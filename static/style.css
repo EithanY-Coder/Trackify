@@ -287,6 +287,20 @@ body {
     }
 }
 
+/* Dashboard: each card cascades in on its own delay instead of the whole
+   tab mounting as one flat block. Re-plays every time you land on the tab
+   (display:none resets CSS animation state), which is the point - it
+   should feel alive, not just once on first load. */
+#dashboard > .stats-grid-unified,
+#dashboard .dashboard-grid > .card {
+    animation: tabFadeIn 0.55s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+#dashboard > .stats-grid-unified { animation-delay: 0.03s; }
+#dashboard-charts-grid > .card:nth-child(1) { animation-delay: 0.09s; }
+#dashboard-charts-grid > .card:nth-child(2) { animation-delay: 0.15s; }
+#dashboard-activity-grid > .card:nth-child(1) { animation-delay: 0.21s; }
+#dashboard-activity-grid > .card:nth-child(2) { animation-delay: 0.27s; }
+
 /* ==========================================================================
    STATS CARDS GRID
    ========================================================================== */
@@ -296,6 +310,40 @@ body {
     border: 1px solid var(--card-border);
     border-radius: var(--border-radius-lg);
     background-color: var(--card-bg);
+    transition: var(--transition-smooth);
+}
+
+.stats-grid-unified:hover {
+    border-color: var(--card-border-focus);
+    box-shadow: var(--box-shadow-card-hover);
+}
+
+/* Spotlight hover: a soft glow that tracks the cursor, applied to the
+   dashboard's hero stats card and its four grid cards. --spot-x/--spot-y
+   are set by a mousemove listener in app.js (initSpotlightCards). z-index:-1
+   pins the glow behind the card's own (static, non-positioned) content
+   rather than relying on paint-order ambiguity between them. */
+#dashboard .stats-grid-unified,
+#dashboard .dashboard-grid > .card {
+    position: relative;
+    overflow: hidden;
+}
+
+#dashboard .stats-grid-unified::before,
+#dashboard .dashboard-grid > .card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: radial-gradient(450px circle at var(--spot-x, 50%) var(--spot-y, 50%), rgba(17, 24, 39, 0.14), transparent 70%);
+    opacity: 0;
+    transition: opacity 0.4s ease;
+    pointer-events: none;
+}
+
+#dashboard .stats-grid-unified:hover::before,
+#dashboard .dashboard-grid > .card:hover::before {
+    opacity: 1;
 }
 
 .unified-stat-row {

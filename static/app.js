@@ -121,10 +121,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initialize Advisor Events
     initAdvisorEvents();
-    
+
+    // Initialize dashboard card spotlight-hover effect
+    initSpotlightCards();
+
     // Check authentication and initialize app data
     initAuth();
 });
+
+// Tracks the cursor over the dashboard's hero stats card and grid cards to
+// drive the CSS spotlight-hover glow (--spot-x/--spot-y, see style.css).
+// Delegated on document so it keeps working after the dashboard's cards are
+// re-rendered - nothing here depends on specific DOM node identity.
+function initSpotlightCards() {
+    const SPOTLIGHT_SELECTOR = '#dashboard .stats-grid-unified, #dashboard .dashboard-grid > .card';
+    document.addEventListener('mousemove', (e) => {
+        const card = e.target.closest(SPOTLIGHT_SELECTOR);
+        if (!card) return;
+        const rect = card.getBoundingClientRect();
+        card.style.setProperty('--spot-x', `${e.clientX - rect.left}px`);
+        card.style.setProperty('--spot-y', `${e.clientY - rect.top}px`);
+    });
+}
 
 // ==========================================================================
 // TOAST NOTIFICATIONS Helper
@@ -1060,6 +1078,45 @@ function formatCurrency(amount) {
     }).format(amount);
 }
 
+// Counts a stat value up (or down) from 0 to its real total instead of just
+// snapping the text in - the classic "the numbers are alive" fintech touch.
+// Keyed per-element so a fast re-render (e.g. adding a transaction right
+// after switching tabs) cancels the in-flight count instead of racing it.
+const _countUpFrames = new WeakMap();
+
+function animateCountUp(el, target, duration = 900) {
+    if (!el) return;
+    const existing = _countUpFrames.get(el);
+    if (existing) cancelAnimationFrame(existing);
+
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        el.textContent = formatCurrency(target);
+        return;
+    }
+
+    const start = performance.now();
+    const from = 0;
+
+    function tick(now) {
+        const elapsed = now - start;
+        const progress = Math.min(elapsed / duration, 1);
+        // Ease-out cubic: fast start, gentle settle - reads as "counting up
+        // energetically" rather than a linear odometer.
+        const eased = 1 - Math.pow(1 - progress, 3);
+        const current = from + (target - from) * eased;
+        el.textContent = formatCurrency(current);
+
+        if (progress < 1) {
+            _countUpFrames.set(el, requestAnimationFrame(tick));
+        } else {
+            el.textContent = formatCurrency(target);
+            _countUpFrames.delete(el);
+        }
+    }
+
+    _countUpFrames.set(el, requestAnimationFrame(tick));
+}
+
 function updateDashboardMetrics() {
     let incomeTotal = 0;
     let expenseTotal = 0;
@@ -1073,12 +1130,12 @@ function updateDashboardMetrics() {
     });
     
     const netSavings = incomeTotal - expenseTotal;
-    
-    // Update labels
-    elements.dashboardTotalIncome.textContent = formatCurrency(incomeTotal);
-    elements.dashboardTotalExpenses.textContent = formatCurrency(expenseTotal);
-    elements.dashboardNetSavings.textContent = formatCurrency(netSavings);
-    
+
+    // Update labels (count up rather than snapping the text in)
+    animateCountUp(elements.dashboardTotalIncome, incomeTotal);
+    animateCountUp(elements.dashboardTotalExpenses, expenseTotal);
+    animateCountUp(elements.dashboardNetSavings, netSavings);
+
     // Sidebar Update
     elements.sidebarNetBalance.textContent = formatCurrency(netSavings);
     
