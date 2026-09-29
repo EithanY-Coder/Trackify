@@ -5,7 +5,6 @@
 const state = {
     transactions: [],
     categories: [],
-    goals: [],
     activeTab: 'dashboard',
     chartFilter: 'all', // 'all', 'month', 'week'
     currentUser: null,
@@ -17,15 +16,7 @@ const elements = {
     // Auth Containers
     authContainer: document.getElementById('auth-container'),
     appContainer: document.getElementById('app-container'),
-    
-    // Goals elements
-    addGoalModal: document.getElementById('add-goal-modal'),
-    updateGoalModal: document.getElementById('update-goal-modal'),
-    addGoalForm: document.getElementById('add-goal-form'),
-    updateGoalForm: document.getElementById('update-goal-form'),
-    btnCancelAddGoal: document.getElementById('btn-cancel-add-goal'),
-    btnCancelUpdateGoal: document.getElementById('btn-cancel-update-goal'),
-    btnAddGoalTrigger: document.getElementById('btn-add-goal-trigger'),
+    weeklyEmailToggle: document.getElementById('weekly-email-toggle'),
 
     // Auth Form Elements
     authForm: document.getElementById('auth-form'),
@@ -127,10 +118,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Initialize AI Logger
     initAiLogger();
-    
-    // Initialize Goals Events
-    initGoalsEvents();
-    
+
     // Initialize Advisor Events
     initAdvisorEvents();
     
@@ -190,6 +178,11 @@ async function initAuth() {
             elements.sidebarUserWelcome.textContent = `Logged in as ${state.currentUser}`;
             elements.authContainer.classList.add('hidden');
             elements.appContainer.classList.remove('hidden');
+            // Wires up the sidebar Log Out button (among other auth listeners).
+            // Without this, a user who loads the page already logged in (the
+            // normal case) gets a dead Log Out button - the listener was only
+            // ever attached from the "no session" branch below.
+            setupAuthEventListeners();
             fetchData();
         } else {
             state.currentUser = null;
@@ -400,22 +393,31 @@ async function apiCall(url, options = {}) {
 // DATA FETCHING & STATE MANAGEMENT
 // ==========================================================================
 async function fetchData() {
-    try {
-        await Promise.all([
-            fetchCategories(),
-            fetchTransactions(),
-            fetchGoals(),
-            fetchAdvisorHistory()
-        ]);
-    } catch (err) {
-        console.error('Error fetching initial data:', err);
-        const isNetworkError = err instanceof TypeError || 
-                               err.message.includes('Failed to fetch') || 
-                               err.message.includes('NetworkError') ||
-                               err.message.includes('Network request failed');
-        if (isNetworkError) {
-            showToast('Failed to connect to Flask API server. Make sure server is running.', 'error');
+    // Runs the four independently - one failing fetch/render no longer
+    // blocks the others from populating.
+    const names = ['categories', 'transactions', 'settings', 'advisorHistory'];
+    const results = await Promise.allSettled([
+        fetchCategories(),
+        fetchTransactions(),
+        fetchUserSettings(),
+        fetchAdvisorHistory()
+    ]);
+
+    let hasNetworkError = false;
+    results.forEach((r, i) => {
+        if (r.status === 'rejected') {
+            const err = r.reason;
+            console.error(`Error fetching ${names[i]}:`, err);
+            const isNetworkError = err instanceof TypeError ||
+                                   err.message.includes('Failed to fetch') ||
+                                   err.message.includes('NetworkError') ||
+                                   err.message.includes('Network request failed');
+            if (isNetworkError) hasNetworkError = true;
         }
+    });
+
+    if (hasNetworkError) {
+        showToast('Failed to connect to Flask API server. Make sure server is running.', 'error');
     }
 }
 
@@ -440,16 +442,6 @@ async function fetchTransactions() {
     renderCharts();
 }
 
-// ==========================================================================
-// SAVINGS GOALS MANAGEMENT
-// ==========================================================================
-async function fetchGoals() {
-    const response = await apiCall('/api/goals');
-    if (!response.ok) throw new Error('Failed to load goals');
-    state.goals = await response.json();
-    renderGoals();
-}
-
 function escapeHtml(str) {
     if (!str) return '';
     return str.replace(/&/g, "&amp;")
@@ -459,162 +451,38 @@ function escapeHtml(str) {
               .replace(/'/g, "&#039;");
 }
 
-function renderGoals() {
-    const container = document.getElementById('dashboard-goals-list');
-    if (!container) return;
-    
-    if (state.goals.length === 0) {
-        container.innerHTML = '<div class="no-data-msg">No savings goals set yet.</div>';
-        return;
-    }
-    
-    container.innerHTML = state.goals.map(g => {
-        const percent = Math.min(100, Math.max(0, (g.saved_amount / g.target_amount) * 100));
-        return `
-            <div class="goal-item" data-id="${g.id}">
-                <div class="goal-info">
-                    <span class="goal-title">${escapeHtml(g.title)}</span>
-                    <span class="goal-deadline">Deadline: ${g.deadline}</span>
-                </div>
-                <div class="goal-progress-container">
-                    <div class="goal-progress-bar-bg">
-                        <div class="goal-progress-bar-fill" style="width: ${percent}%"></div>
-                    </div>
-                    <div class="goal-stats">
-                        <span class="goal-amounts">${formatCurrency(g.saved_amount)} / ${formatCurrency(g.target_amount)}</span>
-                        <span class="goal-percentage">${percent.toFixed(0)}%</span>
-                    </div>
-                </div>
-                <div class="goal-actions">
-                    <button class="goal-btn-update" onclick="openUpdateGoalModal(${g.id}, '${escapeHtml(g.title).replace(/'/g, "\\'")}', ${g.saved_amount})">Update Progress</button>
-                </div>
-            </div>
-        `;
-    }).join('');
-}
-
-function openUpdateGoalModal(id, title, savedAmount) {
-    const modal = document.getElementById('update-goal-modal');
-    const idInput = document.getElementById('update-goal-id');
-    const titleInput = document.getElementById('update-goal-title');
-    const savedInput = document.getElementById('update-goal-saved');
-    
-    if (modal && idInput && titleInput && savedInput) {
-        idInput.value = id;
-        titleInput.value = title;
-        savedInput.value = savedAmount;
-        modal.classList.add('active');
+// ==========================================================================
+// USER SETTINGS
+// ==========================================================================
+async function fetchUserSettings() {
+    const response = await apiCall('/api/settings');
+    if (!response.ok) throw new Error('Failed to load settings');
+    const settings = await response.json();
+    if (elements.weeklyEmailToggle) {
+        elements.weeklyEmailToggle.checked = !!settings.weekly_email_enabled;
     }
 }
 
-// Expose globally so inline onclick handler can access it
-window.openUpdateGoalModal = openUpdateGoalModal;
-
-function initGoalsEvents() {
-    const addTrigger = document.getElementById('btn-add-goal-trigger');
-    const addModal = document.getElementById('add-goal-modal');
-    const closeAddBtn = document.getElementById('btn-close-add-goal-modal');
-    const cancelAddBtn = document.getElementById('btn-cancel-add-goal');
-    
-    const updateModal = document.getElementById('update-goal-modal');
-    const closeUpdateBtn = document.getElementById('btn-close-update-goal-modal');
-    const cancelUpdateBtn = document.getElementById('btn-cancel-update-goal');
-    
-    const addForm = document.getElementById('add-goal-form');
-    const updateForm = document.getElementById('update-goal-form');
-
-    // Open/Close Add Modal
-    if (addTrigger && addModal) {
-        addTrigger.addEventListener('click', () => {
-            const threeMonthsFromNow = new Date();
-            threeMonthsFromNow.setMonth(threeMonthsFromNow.getMonth() + 3);
-            const dateStr = threeMonthsFromNow.toISOString().split('T')[0];
-            document.getElementById('goal-deadline').value = dateStr;
-            addModal.classList.add('active');
+async function saveUserSettings() {
+    if (!elements.weeklyEmailToggle) return;
+    try {
+        const response = await apiCall('/api/settings', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ weekly_email_enabled: elements.weeklyEmailToggle.checked })
         });
-    }
-    
-    const closeAddModal = () => {
-        if (addModal) {
-            addModal.classList.remove('active');
-            if (addForm) addForm.reset();
+        if (response.ok) {
+            showToast(
+                elements.weeklyEmailToggle.checked ? 'Weekly recap emails turned on.' : 'Weekly recap emails turned off.',
+                'success'
+            );
+        } else {
+            const errRes = await response.json();
+            showToast(errRes.error || 'Failed to update settings', 'error');
         }
-    };
-    
-    if (closeAddBtn) closeAddBtn.addEventListener('click', closeAddModal);
-    if (cancelAddBtn) cancelAddBtn.addEventListener('click', closeAddModal);
-
-    // Close Update Modal
-    const closeUpdateModal = () => {
-        if (updateModal) {
-            updateModal.classList.remove('active');
-            if (updateForm) updateForm.reset();
-        }
-    };
-    
-    if (closeUpdateBtn) closeUpdateBtn.addEventListener('click', closeUpdateModal);
-    if (cancelUpdateBtn) cancelUpdateBtn.addEventListener('click', closeUpdateModal);
-
-    // Form Submissions
-    if (addForm) {
-        addForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const data = {
-                title: document.getElementById('goal-title').value.trim(),
-                target_amount: parseFloat(document.getElementById('goal-target').value),
-                deadline: document.getElementById('goal-deadline').value
-            };
-            
-            try {
-                const response = await apiCall('/api/goals', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
-                });
-                
-                if (response.ok) {
-                    showToast('Savings goal created successfully!', 'success');
-                    closeAddModal();
-                    await fetchGoals();
-                } else {
-                    const errRes = await response.json();
-                    showToast(errRes.error || 'Failed to create goal', 'error');
-                }
-            } catch (err) {
-                console.error(err);
-                showToast('Error connecting to server', 'error');
-            }
-        });
-    }
-
-    if (updateForm) {
-        updateForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const id = document.getElementById('update-goal-id').value;
-            const data = {
-                saved_amount: parseFloat(document.getElementById('update-goal-saved').value)
-            };
-            
-            try {
-                const response = await apiCall(`/api/goals/${id}`, {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
-                });
-                
-                if (response.ok) {
-                    showToast('Goal progress updated!', 'success');
-                    closeUpdateModal();
-                    await fetchGoals();
-                } else {
-                    const errRes = await response.json();
-                    showToast(errRes.error || 'Failed to update goal', 'error');
-                }
-            } catch (err) {
-                console.error(err);
-                showToast('Error connecting to server', 'error');
-            }
-        });
+    } catch (err) {
+        console.error(err);
+        showToast('Error connecting to server', 'error');
     }
 }
 
@@ -1119,8 +987,9 @@ function populateCustomDropdownOptions(prefix, selectedValue) {
     const hiddenInput = document.getElementById(`${prefix}-category`);
     
     if (!trigger || !dropdown || !list || !hiddenInput) return;
-    
+
     const displayVal = trigger.querySelector('.selected-val');
+    if (!displayVal) return;
     
     list.innerHTML = state.categories.map(cat => {
         const isSelected = cat.name === selectedValue;
@@ -1216,18 +1085,24 @@ function updateDashboardMetrics() {
     if (netSavings < 0) {
         elements.dashboardNetSavings.style.color = 'var(--color-rose)';
         elements.sidebarNetBalance.style.color = 'var(--color-rose)';
-        elements.sidebarStatusMsg.innerHTML = 'Spending more than earning!';
-        elements.sidebarStatusMsg.style.color = 'var(--color-rose)';
+        if (elements.sidebarStatusMsg) {
+            elements.sidebarStatusMsg.innerHTML = 'Spending more than earning!';
+            elements.sidebarStatusMsg.style.color = 'var(--color-rose)';
+        }
     } else if (netSavings > 0) {
         elements.dashboardNetSavings.style.color = 'var(--color-emerald)';
         elements.sidebarNetBalance.style.color = 'var(--color-emerald)';
-        elements.sidebarStatusMsg.innerHTML = 'Healthy savings progress!';
-        elements.sidebarStatusMsg.style.color = 'var(--text-muted)';
+        if (elements.sidebarStatusMsg) {
+            elements.sidebarStatusMsg.innerHTML = 'Healthy savings progress!';
+            elements.sidebarStatusMsg.style.color = 'var(--text-muted)';
+        }
     } else {
         elements.dashboardNetSavings.style.color = 'var(--text-primary)';
         elements.sidebarNetBalance.style.color = 'var(--text-primary)';
-        elements.sidebarStatusMsg.innerHTML = 'Balance is perfectly neutral.';
-        elements.sidebarStatusMsg.style.color = 'var(--text-muted)';
+        if (elements.sidebarStatusMsg) {
+            elements.sidebarStatusMsg.innerHTML = 'Balance is perfectly neutral.';
+            elements.sidebarStatusMsg.style.color = 'var(--text-muted)';
+        }
     }
 }
 
@@ -1235,11 +1110,21 @@ function updateDashboardMetrics() {
 // NAVIGATION CONTROLS
 // ==========================================================================
 function initNavigation() {
+    const weeklyToggle = document.getElementById('weekly-email-toggle');
+    if (weeklyToggle) {
+        weeklyToggle.addEventListener('change', () => {
+            saveUserSettings();
+        });
+    }
+
     elements.navButtons.forEach(btn => {
         btn.addEventListener('click', () => {
             const tabName = btn.getAttribute('data-tab');
+            // The Log Out button shares the .nav-btn class (for styling) but
+            // isn't a tab - it has no data-tab and has its own click handler.
+            if (!tabName) return;
             switchTab(tabName);
-            
+
             // Close mobile menu if open
             elements.sidebar.classList.remove('mobile-open');
         });

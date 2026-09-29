@@ -115,6 +115,13 @@
                     </svg>
                     Categories
                 </button>
+                <button class="nav-btn" data-tab="settings-tab">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="3"/>
+                        <path d="M19.4 15a1.5 1.5 0 0 0 .3 1.6l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.5 1.5 0 0 0-1.6-.3 1.5 1.5 0 0 0-.9 1.4V20a2 2 0 1 1-4 0v-.2A1.5 1.5 0 0 0 9.1 18a1.5 1.5 0 0 0-1.6.3l-.1.1A2 2 0 1 1 4.6 15.6l.1-.1A1.5 1.5 0 0 0 5.3 13.9a1.5 1.5 0 0 0-1.4-.9H3.7a2 2 0 1 1 0-4h.2A1.5 1.5 0 0 0 5.3 7.4a1.5 1.5 0 0 0-.3-1.6l-.1-.1A2 2 0 0 1 7.7 3l.1.1a1.5 1.5 0 0 0 1.6.3A1.5 1.5 0 0 0 10.3 2V1.8a2 2 0 1 1 4 0V2A1.5 1.5 0 0 0 14.9 3.3a1.5 1.5 0 0 0 1.6-.3l.1-.1A2 2 0 0 1 19.4 7l-.1.1A1.5 1.5 0 0 0 18.7 8.7a1.5 1.5 0 0 0 .9 1.4H19.8a2 2 0 1 1 0 4h-.2A1.5 1.5 0 0 0 18.7 15.3Z"/>
+                    </svg>
+                    Settings
+                </button>
                 <button class="nav-btn" data-tab="advisor-tab" id="btn-toggle-advisor" type="button">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
@@ -242,19 +249,6 @@
                         </div>
                         <div class="category-list-scroll" id="dashboard-category-list">
                             <!-- Injected via Javascript -->
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Savings Goals Section -->
-                <div class="dashboard-grid">
-                    <div class="card glass span-3">
-                        <div class="card-header">
-                            <h3>Savings Goals</h3>
-                            <button class="view-all-link" id="btn-add-goal-trigger">+ Add Goal</button>
-                        </div>
-                        <div class="goals-container" id="dashboard-goals-list" style="display: flex; flex-direction: column; gap: 1.25rem; padding: 0.5rem 0;">
-                            <div class="no-data-msg">No savings goals set yet.</div>
                         </div>
                     </div>
                 </div>
@@ -646,7 +640,31 @@
                 </div>
             </section>
 
-            <!-- TAB 5: AI Advisor (Full Screen) -->
+            <!-- TAB 5: Settings -->
+            <section id="settings-tab" class="tab-content">
+                <div class="content-header">
+                    <h2>Settings</h2>
+                    <p class="subtitle">Control your account and reminder preferences</p>
+                </div>
+
+                <div class="card glass" style="max-width: 720px;">
+                    <h3>Email reminders</h3>
+                    <p class="card-desc">Turn weekly spending recap emails on or off at any time.</p>
+
+                    <div style="display: flex; align-items: center; justify-content: space-between; gap: 1rem; border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 14px; padding: 1rem 1.1rem; margin-top: 1rem; background: rgba(15, 23, 42, 0.16);">
+                        <div>
+                            <div style="font-weight: 600; margin-bottom: 0.2rem;">Weekly recap emails</div>
+                            <div style="color: var(--text-muted); font-size: 0.92rem;">Get a summary of your spending and goal progress every week.</div>
+                        </div>
+                        <label class="switch" aria-label="Toggle weekly summary emails">
+                            <input type="checkbox" id="weekly-email-toggle" checked>
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 6: AI Advisor (Full Screen) -->
             <section id="advisor-tab" class="tab-content">
                 <div class="advisor-fullscreen">
 
@@ -901,59 +919,6 @@
                     </tbody>
                 </table>
             </div>
-        </div>
-    </div>
-
-    <!-- Add Goal Modal -->
-    <div id="add-goal-modal" class="modal-overlay">
-        <div class="modal-content glass">
-            <div class="modal-header">
-                <h2>Create Savings Goal</h2>
-                <button type="button" class="close-modal-btn" id="btn-close-add-goal-modal">&times;</button>
-            </div>
-            <form id="add-goal-form">
-                <div class="form-group">
-                    <label for="goal-title">Goal Name</label>
-                    <input type="text" id="goal-title" placeholder="e.g. New Laptop" required>
-                </div>
-                <div class="form-group" style="margin-top: 1rem;">
-                    <label for="goal-target">Target Amount ($)</label>
-                    <input type="number" id="goal-target" step="0.01" min="0.01" placeholder="0.00" required>
-                </div>
-                <div class="form-group" style="margin-top: 1rem;">
-                    <label for="goal-deadline">Target Date</label>
-                    <input type="date" id="goal-deadline" required>
-                </div>
-                <div class="modal-actions" style="margin-top: 1.5rem;">
-                    <button type="button" class="cancel-btn" id="btn-cancel-add-goal">Cancel</button>
-                    <button type="submit" class="submit-btn" style="background: var(--color-indigo); color: white;">Save Goal</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- Update Goal Progress Modal -->
-    <div id="update-goal-modal" class="modal-overlay">
-        <div class="modal-content glass">
-            <div class="modal-header">
-                <h2>Update Goal Progress</h2>
-                <button type="button" class="close-modal-btn" id="btn-close-update-goal-modal">&times;</button>
-            </div>
-            <form id="update-goal-form">
-                <input type="hidden" id="update-goal-id">
-                <div class="form-group">
-                    <label for="update-goal-title">Goal Name</label>
-                    <input type="text" id="update-goal-title" readonly style="opacity: 0.7;">
-                </div>
-                <div class="form-group" style="margin-top: 1rem;">
-                    <label for="update-goal-saved">Current Saved Amount ($)</label>
-                    <input type="number" id="update-goal-saved" step="0.01" min="0" placeholder="0.00" required>
-                </div>
-                <div class="modal-actions" style="margin-top: 1.5rem;">
-                    <button type="button" class="cancel-btn" id="btn-cancel-update-goal">Cancel</button>
-                    <button type="submit" class="submit-btn" style="background: var(--color-indigo); color: white;">Update Saved</button>
-                </div>
-            </form>
         </div>
     </div>
 
