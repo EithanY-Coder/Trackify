@@ -162,23 +162,11 @@ def get_user_financial_profile(user_id):
     ''', (user_id, current_month_prefix + '%')).fetchall()
     category_breakdown = {r['category_name']: r[1] for r in cat_rows}
 
-    goal_rows = conn.execute('''
-        SELECT title, target_amount, saved_amount, deadline FROM goals
-        WHERE user_id = ?
-    ''', (user_id,)).fetchall()
-    goals_list = [
-        f"- {r['title']}: Target ${r['target_amount']:.2f}, Saved ${r['saved_amount']:.2f}, Deadline: {r['deadline']}"
-        for r in goal_rows
-    ]
-
-    goals_str = "\n".join(goals_list) if goals_list else "No active savings goals."
     cat_str = ", ".join([f"{k}: ${v:.2f}" for k, v in category_breakdown.items()]) if category_breakdown else "No spending recorded this month."
 
     return f"""--- CURRENT USER FINANCIAL PROFILE ---
 Month-to-Date Spend: ${mtd_spent:.2f}
 Spending by Category: {cat_str}
-Active Savings Goals:
-{goals_str}
 -------------------------------------"""
 
 

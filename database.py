@@ -51,20 +51,6 @@ def init_db():
     # Create indexes for performance
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_transactions_user_id ON transactions(user_id);')
     
-    # Create goals table
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS goals (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id TEXT NOT NULL,
-            title TEXT NOT NULL,
-            target_amount REAL NOT NULL,
-            saved_amount REAL NOT NULL DEFAULT 0.0,
-            deadline TEXT NOT NULL,
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-    cursor.execute('CREATE INDEX IF NOT EXISTS idx_goals_user_id ON goals(user_id);')
-
     # Create user settings table for weekly reminder preferences and timezone
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS user_settings (
@@ -146,7 +132,11 @@ def init_db():
             'INSERT INTO categories (name, icon, color, user_id) VALUES (?, ?, ?, NULL)',
             default_categories
         )
-    
+
+    # The savings-goals feature was removed. One-time cleanup for databases
+    # created before this change - safe to run every startup (IF EXISTS).
+    cursor.execute('DROP TABLE IF EXISTS goals')
+
     conn.commit()
     conn.close()
 

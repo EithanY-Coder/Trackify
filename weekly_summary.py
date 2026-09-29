@@ -1,5 +1,5 @@
 # pyrefly: ignore [missing-import] - Weekly recap generation + send job for Trackify
-"""Builds and sends the weekly spending/goal recap email.
+"""Builds and sends the weekly spending recap email.
 
 Design notes:
 
@@ -8,8 +8,8 @@ Design notes:
   flask.g does not exist, so a request-scoped connection would blow up.
 * Summary generation is kept separate from sending so it can be previewed and
   tested without touching the email provider.
-* All user-supplied strings (category names, goal titles) are HTML-escaped
-  before they reach the email body.
+* All user-supplied strings (category names) are HTML-escaped before they
+  reach the email body.
 """
 import datetime
 import html
@@ -62,7 +62,7 @@ def previous_week_bounds(tz_name='UTC', reference=None):
 # ----------------- SUMMARY GENERATION -----------------
 
 def build_weekly_summary(conn, user_id, week_start, week_end):
-    """Aggregates one user's week from the existing transactions/goals tables.
+    """Aggregates one user's week from the existing transactions table.
 
     Returns a plain dict. `has_content` is False when there is genuinely
     nothing to report - the caller uses that to avoid sending an empty email.
@@ -103,30 +103,6 @@ def build_weekly_summary(conn, user_id, week_start, week_end):
             'percent': round((amount / total_spent) * 100, 1) if total_spent > 0 else 0.0,
         })
 
-    # Active goal = not yet reached. Finished goals are dropped so the email
-    # stays about what still needs work.
-    goal_rows = conn.execute('''
-        SELECT title, target_amount, saved_amount, deadline
-        FROM goals
-        WHERE user_id = ? AND saved_amount < target_amount
-        ORDER BY deadline ASC
-    ''', (user_id,)).fetchall()
-
-    goals = []
-    for row in goal_rows:
-        target = float(row['target_amount'] or 0.0)
-        saved = float(row['saved_amount'] or 0.0)
-        remaining = max(target - saved, 0.0)
-        percent = round((saved / target) * 100, 1) if target > 0 else 0.0
-        goals.append({
-            'title': row['title'],
-            'target_amount': target,
-            'saved_amount': saved,
-            'remaining': remaining,
-            'percent': min(percent, 100.0),
-            'deadline': row['deadline'],
-        })
-
     return {
         'week_start': start_str,
         'week_end': end_str,
@@ -136,8 +112,7 @@ def build_weekly_summary(conn, user_id, week_start, week_end):
         'transaction_count': transaction_count,
         'categories': categories,
         'top_categories': categories[:TOP_CATEGORY_COUNT],
-        'goals': goals,
-        'has_content': transaction_count > 0 or bool(goals),
+        'has_content': transaction_count > 0,
     }
 
 
@@ -165,8 +140,8 @@ def build_unsubscribe_url(user_id):
 def render_weekly_email_html(summary, unsubscribe_url):
     """Renders the recap as email-safe HTML (inline styles, table layout).
 
-    Category names and goal titles are user-authored, so every interpolation of
-    them goes through html.escape().
+    Category names are user-authored, so every interpolation of them goes
+    through html.escape().
     """
     app_url = helpers.get_app_base_url()
     period = f"{_pretty_date(summary['week_start'])} - {_pretty_date(summary['week_end'])}"
@@ -198,29 +173,6 @@ def render_weekly_email_html(summary, unsubscribe_url):
     else:
         top_block = ''
 
-    if summary['goals']:
-        goal_cards = ''
-        for goal in summary['goals']:
-            bar_width = min(max(goal['percent'], 0), 100)
-            goal_cards += f'''
-              <div style="border:1px solid #e5e7eb;border-radius:10px;padding:16px;margin-bottom:12px;">
-                <div style="font-size:15px;font-weight:600;color:#111827;margin-bottom:4px;">{html.escape(goal['title'])}</div>
-                <div style="font-size:13px;color:#6b7280;margin-bottom:10px;">Due {html.escape(_pretty_date(goal['deadline']))}</div>
-                <div style="background:#eef1f5;border-radius:999px;height:8px;overflow:hidden;margin-bottom:10px;">
-                  <div style="background:#4f46e5;height:8px;width:{bar_width}%;"></div>
-                </div>
-                <div style="font-size:13px;color:#374151;">
-                  {_money(goal['saved_amount'])} of {_money(goal['target_amount'])}
-                  &nbsp;&middot;&nbsp; <strong>{goal['percent']}% complete</strong>
-                  &nbsp;&middot;&nbsp; {_money(goal['remaining'])} to go
-                </div>
-              </div>'''
-        goals_block = f'''
-          <h2 style="margin:32px 0 12px;font-size:16px;color:#111827;">Your savings goals</h2>
-          {goal_cards}'''
-    else:
-        goals_block = '<p style="margin:24px 0 0;color:#6b7280;font-size:14px;">You have no active savings goals right now.</p>'
-
     return f'''<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
@@ -250,7 +202,6 @@ def render_weekly_email_html(summary, unsubscribe_url):
 
           {category_block}
           {top_block}
-          {goals_block}
 
           <div style="margin-top:32px;text-align:center;">
             <a href="{html.escape(app_url)}" style="display:inline-block;background:#4f46e5;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:12px 28px;border-radius:10px;">Open Trackify</a>
@@ -291,19 +242,6 @@ def render_weekly_email_text(summary, unsubscribe_url):
         lines.append('TOP SPENDING CATEGORIES')
         for i, c in enumerate(summary['top_categories'], start=1):
             lines.append(f"  {i}. {c['name']} - {_money(c['amount'])} ({c['percent']}%)")
-        lines.append('')
-
-    if summary['goals']:
-        lines.append('SAVINGS GOALS')
-        for goal in summary['goals']:
-            lines.append(f"  - {goal['title']} (due {_pretty_date(goal['deadline'])})")
-            lines.append(
-                f"      {_money(goal['saved_amount'])} of {_money(goal['target_amount'])}"
-                f" - {goal['percent']}% complete, {_money(goal['remaining'])} to go"
-            )
-        lines.append('')
-    else:
-        lines.append('You have no active savings goals right now.')
         lines.append('')
 
     lines.append(f'Open Trackify: {helpers.get_app_base_url()}')
@@ -402,7 +340,7 @@ def run_weekly_email_job(logger=None, dry_run=False, reference_date=None):
                 log('exception', f'Failed to build weekly summary for {user_id}: {type(e).__name__}')
                 continue
 
-            # Don't email someone with no transactions and no goals - there is
+            # Don't email someone with no transactions this week - there is
             # nothing to say, and it reads as spam.
             if not summary['has_content']:
                 stats['skipped_empty'] += 1

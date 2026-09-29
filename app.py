@@ -39,7 +39,7 @@ database.init_db()
 # Wire up rate limiting, DB teardown, and centralized error handling
 helpers.register_error_handlers(app)
 
-# Register all API blueprints (auth, categories, transactions, goals, advisor, ai,
+# Register all API blueprints (auth, categories, transactions, advisor, ai,
 # settings, jobs)
 register_blueprints(app)
 

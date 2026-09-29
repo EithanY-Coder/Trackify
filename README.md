@@ -10,7 +10,7 @@
 - **Hourly Income Calculator:** Automatically calculate net/gross pay and tax deductions based on hours worked and hourly wage.
 - **Smart Category Management:** Group transactions with custom icons (emojis) and hex colors.
 - **AI Transaction Parser (Gemini Beta):** Simply type in natural language (e.g., *"worked 5 hours at $15/hr"* or *"spent $12.50 on a burger today"*) and let the AI extract all details, calculate amounts, and assign categories automatically.
-- **Weekly Recap Emails:** Verified users can opt in (Settings tab) to a Monday email summarizing last week's spending, category breakdown, top categories, and progress on every active savings goal.
+- **Weekly Recap Emails:** Verified users can opt in (Settings tab) to a Monday email summarizing last week's spending, category breakdown, and top categories.
 - **Clean Interactive UI:** View analytics, log logs, and interact with a premium, responsive dashboard.
 
 ---
@@ -85,7 +85,7 @@ python3 -c "import secrets; print(secrets.token_urlsafe(32))"
 2. The **Settings** tab toggles `weekly_email_enabled` in the `user_settings`
    table (on by default).
 3. A scheduled job builds each user's Mon-Sun recap from the existing
-   `transactions` and `goals` tables and sends it via Resend or SendGrid.
+   `transactions` table and sends it via Resend or SendGrid.
 4. Every send is recorded in `weekly_email_log`, which has a
    `UNIQUE(user_id, week_start)` constraint - so the job is safe to run more
    than once. No user can receive two recaps for the same week.
@@ -158,9 +158,10 @@ The application will start running at `http://127.0.0.1:5001/` (or your configur
 │   ├── auth.py          #   /api/auth/status
 │   ├── categories.py     #   /api/categories
 │   ├── transactions.py   #   /api/transactions
-│   ├── goals.py           #   /api/goals
 │   ├── advisor.py         #   /api/advisor/* (AI chat sessions)
-│   └── ai.py               #   /api/ai/parse-transaction
+│   ├── ai.py               #   /api/ai/parse-transaction
+│   ├── settings.py         #   /api/settings, /api/settings/unsubscribe
+│   └── jobs.py              #   /api/jobs/weekly-emails
 ├── database.py         # Database initialization and connection helpers
 ├── requirements.txt    # Pinned Python dependencies
 ├── trackify.db         # SQLite Database (generated locally)

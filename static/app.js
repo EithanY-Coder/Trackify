@@ -678,14 +678,14 @@ function renderAdvisorHistory() {
             <div class="advisor-fs-avatar">🤖</div>
             <div class="advisor-fs-welcome-text">
                 <h3>Hi there! I'm your Trackify Financial Coach.</h3>
-                <p>I can see your real-time spending, savings goals, and budget categories. Ask me anything — from cutting costs to hitting your targets faster.</p>
+                <p>I can see your real-time spending and budget categories. Ask me anything — from cutting costs to hitting your targets faster.</p>
             </div>
         </div>
     `;
     const drawerWelcomeHtml = `
         <div class="advisor-welcome-msg">
             <div class="advisor-avatar">🤖</div>
-            <p>Hi there! I am your <strong>Trackify Financial Coach</strong>. I can analyze your MTD spending, keep track of your active savings goals, and help you build healthy budget habits. How can I help you today?</p>
+            <p>Hi there! I am your <strong>Trackify Financial Coach</strong>. I can analyze your MTD spending and help you build healthy budget habits. How can I help you today?</p>
         </div>
     `;
 
