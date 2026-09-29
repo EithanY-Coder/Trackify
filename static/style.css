@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap');
 
 /* ==========================================================================
    TRACKIFY DESIGN SYSTEM & GENERAL STYLES
@@ -33,7 +33,10 @@
     --border-radius-lg: 8px; /* sharp corners */
     --border-radius-md: 6px;
     --border-radius-sm: 4px;
-    --box-shadow-main: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05);
+    /* Tinted with the slate text color instead of flat black, so shadows read
+       as depth in the same "ink" as the UI rather than a generic gray smudge. */
+    --box-shadow-main: 0 1px 3px 0 rgba(17, 24, 39, 0.06), 0 1px 2px -1px rgba(17, 24, 39, 0.04);
+    --box-shadow-card-hover: 0 8px 20px -6px rgba(17, 24, 39, 0.12), 0 2px 6px -2px rgba(17, 24, 39, 0.06);
     --transition-smooth: all 0.2s ease;
 }
 
@@ -44,12 +47,15 @@
 }
 
 body {
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-family: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     background-color: var(--bg-primary);
     color: var(--text-primary);
     min-height: 100vh;
     overflow-x: hidden;
     line-height: 1.5;
+    /* Digits keep a fixed width so money in a table or stat grid lines up
+       column-for-column instead of jittering with proportional figures. */
+    font-variant-numeric: tabular-nums;
 }
 
 /* Custom Scrollbars */
@@ -138,6 +144,10 @@ body {
     color: var(--text-primary);
 }
 
+.nav-btn:active {
+    background-color: rgba(0, 0, 0, 0.06);
+}
+
 .nav-btn.active {
     background-color: var(--text-primary);
     color: #FFFFFF;
@@ -213,7 +223,11 @@ body {
 }
 
 .card:hover {
-    border-color: rgba(255, 255, 255, 0.12);
+    /* Shadow-only, no lift/transform: .card wraps mostly static containers
+       (stat grids, charts), so a deeper shadow reads as ambient depth
+       without implying every card is clickable. */
+    border-color: var(--card-border-focus);
+    box-shadow: var(--box-shadow-card-hover);
 }
 
 .card-header {
@@ -471,6 +485,10 @@ body {
     box-shadow: none;
 }
 
+.filter-btn:active {
+    transform: scale(0.96);
+}
+
 .modal-content.modal-large {
     max-width: 800px;
 }
@@ -512,7 +530,7 @@ body {
 .progress-bar-bg {
     width: 100%;
     height: 8px;
-    background-color: rgba(255, 255, 255, 0.05);
+    background-color: rgba(17, 24, 39, 0.05);
     border-radius: 10px;
     overflow: hidden;
 }
@@ -551,7 +569,7 @@ body {
 
 .transaction-table td {
     padding: 0.9rem 1rem;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.02);
+    border-bottom: 1px solid rgba(17, 24, 39, 0.02);
     font-size: 0.95rem;
     vertical-align: middle;
 }
@@ -561,7 +579,7 @@ body {
 }
 
 .transaction-table tr:hover td {
-    background-color: rgba(255, 255, 255, 0.01);
+    background-color: rgba(17, 24, 39, 0.01);
 }
 
 /* Table Badges & Status */
@@ -602,6 +620,10 @@ body {
     color: var(--color-rose);
     background-color: rgba(244, 63, 94, 0.1);
     transform: scale(1.1);
+}
+
+.btn-delete:active {
+    transform: scale(0.95);
 }
 
 .view-all-link {
@@ -664,7 +686,7 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    background-color: rgba(255, 255, 255, 0.03);
+    background-color: rgba(17, 24, 39, 0.03);
     border: 1px solid var(--card-border);
     padding: 0.85rem 1.25rem;
     border-radius: var(--border-radius-md);
@@ -677,7 +699,7 @@ body {
 
 .custom-select-trigger:hover {
     border-color: var(--card-border-focus);
-    background-color: rgba(255, 255, 255, 0.05);
+    background-color: rgba(17, 24, 39, 0.05);
 }
 
 .custom-select-options {
@@ -714,7 +736,7 @@ body {
 }
 
 .custom-select-search {
-    background-color: rgba(255, 255, 255, 0.02);
+    background-color: rgba(17, 24, 39, 0.02);
     border: 1px solid var(--card-border);
     border-radius: var(--border-radius-sm);
     padding: 0.65rem 0.85rem;
@@ -744,7 +766,7 @@ body {
     background: transparent;
 }
 .options-list::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(17, 24, 39, 0.1);
     border-radius: 3px;
 }
 
@@ -761,7 +783,7 @@ body {
 }
 
 .custom-option:hover {
-    background-color: rgba(255, 255, 255, 0.05);
+    background-color: rgba(17, 24, 39, 0.05);
 }
 
 .custom-option.selected {
@@ -920,14 +942,14 @@ select {
     left: 0;
     height: 18px;
     width: 18px;
-    background-color: rgba(255, 255, 255, 0.05);
+    background-color: rgba(17, 24, 39, 0.05);
     border: 1px solid var(--card-border);
     border-radius: 4px;
     transition: var(--transition-smooth);
 }
 
 .checkbox-container:hover input ~ .checkmark {
-    background-color: rgba(255, 255, 255, 0.1);
+    background-color: rgba(17, 24, 39, 0.1);
 }
 
 .checkbox-container input:checked ~ .checkmark {
@@ -1000,8 +1022,8 @@ select {
 }
 
 .calculator-fields {
-    background: rgba(255, 255, 255, 0.015);
-    border: 1px dashed rgba(255, 255, 255, 0.06);
+    background: rgba(17, 24, 39, 0.015);
+    border: 1px dashed rgba(17, 24, 39, 0.06);
     border-radius: var(--border-radius-lg);
     padding: 1.25rem;
     margin-bottom: 1.25rem;
@@ -1052,6 +1074,10 @@ select {
 
 .submit-btn:hover {
     transform: translateY(-2px);
+}
+
+.submit-btn:active {
+    transform: translateY(0) scale(0.98);
 }
 
 .btn-expense {
@@ -1149,7 +1175,7 @@ select {
     width: 70px;
     height: 70px;
     border-radius: 50%;
-    background-color: rgba(255, 255, 255, 0.02);
+    background-color: rgba(17, 24, 39, 0.02);
     border: 1px solid var(--card-border);
     transition: var(--transition-smooth);
 }
@@ -1157,7 +1183,7 @@ select {
 .cat-setting-card:hover .cat-icon {
     transform: scale(1.1) rotate(5deg);
     border-color: currentColor;
-    background-color: rgba(255, 255, 255, 0.05);
+    background-color: rgba(17, 24, 39, 0.05);
 }
 
 .cat-setting-card h4 {
@@ -1196,12 +1222,12 @@ select {
 
 /* Grid & helper styling for SVGs */
 .chart-grid-line {
-    stroke: rgba(255, 255, 255, 0.035);
+    stroke: rgba(17, 24, 39, 0.035);
     stroke-width: 1px;
 }
 
 .chart-axis-line {
-    stroke: rgba(255, 255, 255, 0.1);
+    stroke: rgba(17, 24, 39, 0.1);
     stroke-width: 1.5px;
 }
 
@@ -1292,7 +1318,7 @@ select {
 /* Donut SVG styling */
 .donut-circle-bg {
     fill: none;
-    stroke: rgba(255, 255, 255, 0.02);
+    stroke: rgba(17, 24, 39, 0.02);
     stroke-width: 24;
 }
 
@@ -1335,7 +1361,7 @@ select {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    background-color: rgba(255, 255, 255, 0.03);
+    background-color: rgba(17, 24, 39, 0.03);
     border: 1px solid var(--card-border);
     padding: 0.85rem 1.25rem;
     border-radius: var(--border-radius-md);
@@ -1348,7 +1374,7 @@ select {
 
 .custom-datepicker-trigger:hover {
     border-color: var(--card-border-focus);
-    background-color: rgba(255, 255, 255, 0.05);
+    background-color: rgba(17, 24, 39, 0.05);
 }
 
 .custom-datepicker-calendar {
@@ -1392,7 +1418,7 @@ select {
 }
 
 .cal-nav-btn:hover {
-    background-color: rgba(255, 255, 255, 0.05);
+    background-color: rgba(17, 24, 39, 0.05);
     color: var(--text-primary);
 }
 
@@ -1428,7 +1454,7 @@ select {
 }
 
 .calendar-day:hover {
-    background-color: rgba(255, 255, 255, 0.05);
+    background-color: rgba(17, 24, 39, 0.05);
 }
 
 .calendar-day.selected {
@@ -1462,7 +1488,7 @@ select {
 
 /* Tax Toggle Button Styling */
 .tax-toggle-btn {
-    background-color: rgba(255, 255, 255, 0.02);
+    background-color: rgba(17, 24, 39, 0.02);
     border: 1px solid var(--card-border);
     color: var(--text-secondary);
     padding: 0.6rem 1.2rem;
@@ -1759,8 +1785,12 @@ select {
 }
 
 .cancel-btn:hover {
-    background-color: rgba(255, 255, 255, 0.05);
+    background-color: rgba(0, 0, 0, 0.03);
     color: var(--text-primary);
+}
+
+.cancel-btn:active {
+    transform: scale(0.97);
 }
 
 .modal-switcher {
@@ -1807,7 +1837,7 @@ select {
 }
 
 .action-menu-btn:hover {
-    background-color: rgba(255, 255, 255, 0.05);
+    background-color: rgba(17, 24, 39, 0.05);
     color: var(--text-primary);
 }
 
@@ -1849,7 +1879,7 @@ select {
 }
 
 .action-dropdown button:hover {
-    background-color: rgba(255, 255, 255, 0.05);
+    background-color: rgba(17, 24, 39, 0.05);
     color: var(--text-primary);
 }
 
@@ -1863,7 +1893,7 @@ select {
    ========================================================================== */
 textarea#ai-prompt-input {
     width: 100%;
-    background: rgba(255, 255, 255, 0.03);
+    background: rgba(17, 24, 39, 0.03);
     border: 1px solid var(--card-border);
     border-radius: var(--border-radius-md);
     color: var(--text-primary);
@@ -1878,7 +1908,7 @@ textarea#ai-prompt-input {
 textarea#ai-prompt-input:focus {
     outline: none;
     border-color: #be4bdb;
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(17, 24, 39, 0.05);
     box-shadow: 0 0 0 3px rgba(190, 75, 219, 0.15);
 }
 
@@ -2090,111 +2120,6 @@ textarea#ai-prompt-input:focus {
     border-color: rgba(239, 68, 68, 0.4) !important;
 }
 
-/* Savings Goals styling */
-.span-3 {
-    grid-column: span 3;
-}
-
-@media (max-width: 1024px) {
-    .span-3 {
-        grid-column: span 1;
-    }
-}
-
-.goal-item {
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    border-radius: var(--border-radius-md);
-    padding: 1.25rem 1.5rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-    transition: var(--transition-smooth);
-}
-
-.goal-item:hover {
-    background: rgba(255, 255, 255, 0.06);
-    border-color: rgba(255, 255, 255, 0.1);
-}
-
-.goal-info {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.goal-title {
-    font-weight: 600;
-    color: var(--text-primary);
-    font-size: 1.05rem;
-}
-
-.goal-deadline {
-    font-size: 0.825rem;
-    color: var(--text-muted);
-}
-
-.goal-progress-container {
-    width: 100%;
-}
-
-.goal-progress-bar-bg {
-    width: 100%;
-    height: 8px;
-    background: rgba(255, 255, 255, 0.08);
-    border-radius: 4px;
-    overflow: hidden;
-    margin-bottom: 0.5rem;
-}
-
-.goal-progress-bar-fill {
-    height: 100%;
-    background: linear-gradient(90deg, var(--color-indigo) 0%, var(--color-violet) 100%);
-    border-radius: 4px;
-    width: 0%;
-    transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.goal-stats {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    font-size: 0.85rem;
-}
-
-.goal-amounts {
-    color: var(--text-secondary);
-}
-
-.goal-percentage {
-    font-weight: 700;
-    color: var(--color-indigo);
-}
-
-.goal-actions {
-    display: flex;
-    gap: 0.5rem;
-    justify-content: flex-end;
-    margin-top: 0.25rem;
-}
-
-.goal-btn-update {
-    background: none;
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    color: var(--text-primary);
-    padding: 0.35rem 0.75rem;
-    border-radius: var(--border-radius-sm);
-    font-size: 0.8rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: var(--transition-smooth);
-}
-
-.goal-btn-update:hover {
-    background: var(--color-indigo);
-    border-color: var(--color-indigo);
-    color: white;
-}
 
 /* AI Advisor Drawer & Floating Trigger */
 .advisor-floating-trigger {
