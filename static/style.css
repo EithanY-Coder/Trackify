@@ -1960,6 +1960,82 @@ textarea#ai-prompt-input:focus {
     box-shadow: 0 0 0 3px rgba(190, 75, 219, 0.15);
 }
 
+/* Animated glow ring around the textarea while the AI is working - a
+   pulsing conic gradient behind it, visible only through the wrapper's
+   padding gap. Toggled by JS adding/removing .processing. */
+.ai-textarea-wrap {
+    position: relative;
+    border-radius: calc(var(--border-radius-md) + 3px);
+}
+
+.ai-textarea-wrap::before {
+    content: '';
+    position: absolute;
+    inset: -3px;
+    border-radius: inherit;
+    background: conic-gradient(from var(--ai-glow-angle, 0deg), #748ffc, #be4bdb, #748ffc);
+    opacity: 0;
+    z-index: -1;
+    transition: opacity 0.3s ease;
+}
+
+.ai-textarea-wrap.processing::before {
+    opacity: 1;
+    animation: aiGlowSpin 2.5s linear infinite;
+}
+
+@property --ai-glow-angle {
+    syntax: '<angle>';
+    initial-value: 0deg;
+    inherits: false;
+}
+
+@keyframes aiGlowSpin {
+    to { --ai-glow-angle: 360deg; }
+}
+
+/* Example prompt chips - click to drop a ready-made description into the
+   textarea. The main lever for "more interactive": zero typing needed to
+   see the feature work. */
+.ai-example-chips {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.85rem;
+}
+
+.ai-example-chips-label {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    margin-right: 0.15rem;
+}
+
+.ai-chip {
+    background: rgba(190, 75, 219, 0.06);
+    border: 1px solid rgba(190, 75, 219, 0.18);
+    color: var(--text-secondary);
+    padding: 0.4rem 0.85rem;
+    border-radius: 999px;
+    font-family: inherit;
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: var(--transition-smooth);
+}
+
+.ai-chip:hover {
+    background: rgba(190, 75, 219, 0.12);
+    border-color: rgba(190, 75, 219, 0.35);
+    color: var(--text-primary);
+    transform: translateY(-1px);
+}
+
+.ai-chip:active {
+    transform: translateY(0) scale(0.96);
+}
+
 .btn-ai {
     background: linear-gradient(135deg, #748ffc 0%, #be4bdb 100%);
     color: white;
@@ -1997,7 +2073,36 @@ textarea#ai-prompt-input:focus {
     border: 1px solid rgba(190, 75, 219, 0.3);
     box-shadow: 0 8px 32px rgba(190, 75, 219, 0.05);
     transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    animation: aiResultReveal 0.5s cubic-bezier(0.16, 1, 0.3, 1) backwards;
 }
+
+@keyframes aiResultReveal {
+    from {
+        opacity: 0;
+        transform: translateY(10px) scale(0.98);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* Each field in the parsed-result form cascades in on its own delay - reads
+   as "the AI is filling this in for you" rather than the form just
+   appearing fully formed. Re-plays every time the card is un-hidden
+   (display:none resets animation state, same mechanism as the dashboard
+   card stagger). */
+#ai-preview-form > * {
+    animation: tabFadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+#ai-preview-form > *:nth-child(1) { animation-delay: 0.08s; }
+#ai-preview-form > *:nth-child(2) { animation-delay: 0.14s; }
+#ai-preview-form > *:nth-child(3) { animation-delay: 0.20s; }
+#ai-preview-form > *:nth-child(4) { animation-delay: 0.26s; }
+#ai-preview-form > *:nth-child(5) { animation-delay: 0.32s; }
+#ai-preview-form > *:nth-child(6) { animation-delay: 0.38s; }
+#ai-preview-form > *:nth-child(7) { animation-delay: 0.42s; }
+#ai-preview-form > *:nth-child(8) { animation-delay: 0.46s; }
 
 .preview-switcher {
     margin-bottom: 1.25rem !important;

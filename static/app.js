@@ -2777,8 +2777,43 @@ function initAiLogger() {
     
     const btnClear = document.getElementById('btn-ai-clear');
     const previewForm = document.getElementById('ai-preview-form');
+    const textareaWrap = document.querySelector('.ai-textarea-wrap');
+    const exampleChips = document.getElementById('ai-example-chips');
 
     if (!btnProcess) return;
+
+    // Example chips: one click drops a ready-made description in and
+    // focuses the textarea - no typing required to see the feature work.
+    if (exampleChips) {
+        exampleChips.addEventListener('click', (e) => {
+            const chip = e.target.closest('.ai-chip');
+            if (!chip) return;
+            promptInput.value = chip.dataset.example;
+            promptInput.focus();
+            promptInput.setSelectionRange(promptInput.value.length, promptInput.value.length);
+        });
+    }
+
+    // Cycles the button's status text while the AI call is in flight, so a
+    // ~2-4s wait reads as active progress instead of one static label.
+    const PROCESSING_PHRASES = ['Reading your message...', 'Identifying the category...', 'Calculating the amount...', 'Almost done...'];
+    let processingInterval = null;
+
+    function startProcessingUI() {
+        const btnTextEl = btnProcess.querySelector('.btn-text');
+        let i = 0;
+        btnTextEl.textContent = PROCESSING_PHRASES[0];
+        processingInterval = setInterval(() => {
+            i = (i + 1) % PROCESSING_PHRASES.length;
+            btnTextEl.textContent = PROCESSING_PHRASES[i];
+        }, 1100);
+        if (textareaWrap) textareaWrap.classList.add('processing');
+    }
+
+    function stopProcessingUI() {
+        clearInterval(processingInterval);
+        if (textareaWrap) textareaWrap.classList.remove('processing');
+    }
 
     // Helper to switch preview type in UI
     const setPreviewType = (type) => {
@@ -2809,7 +2844,7 @@ function initAiLogger() {
 
         // Show spinner / loading state
         btnProcess.disabled = true;
-        btnProcess.querySelector('.btn-text').textContent = 'Processing with AI...';
+        startProcessingUI();
         btnProcess.querySelector('.btn-spinner').classList.remove('hidden');
         resultCard.classList.add('hidden');
 
@@ -2881,6 +2916,7 @@ function initAiLogger() {
             console.error(err);
             showToast(err.message || 'Error communicating with AI parser.', 'error');
         } finally {
+            stopProcessingUI();
             btnProcess.disabled = false;
             btnProcess.querySelector('.btn-text').textContent = 'Process Transaction';
             btnProcess.querySelector('.btn-spinner').classList.add('hidden');

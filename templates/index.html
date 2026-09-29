@@ -424,9 +424,19 @@
                         
                         <div class="form-group">
                             <label for="ai-prompt-input">Your Description</label>
-                            <textarea id="ai-prompt-input" rows="4" placeholder="e.g., spent $15.50 on pizza with friends today&#10;or: worked 5 hours at my $20/hr tutoring job yesterday" required></textarea>
+                            <div class="ai-textarea-wrap">
+                                <textarea id="ai-prompt-input" rows="4" placeholder="e.g., spent $15.50 on pizza with friends today&#10;or: worked 5 hours at my $20/hr tutoring job yesterday" required></textarea>
+                            </div>
                         </div>
-                        
+
+                        <div class="ai-example-chips" id="ai-example-chips">
+                            <span class="ai-example-chips-label">Try:</span>
+                            <button type="button" class="ai-chip" data-example="Spent $12.50 on a burger and fries for lunch today">🍔 Lunch out</button>
+                            <button type="button" class="ai-chip" data-example="Worked 6 hours at my tutoring job at $22/hr yesterday">💼 Hourly shift</button>
+                            <button type="button" class="ai-chip" data-example="Got $75 as a birthday gift from my aunt">🎁 Gift received</button>
+                            <button type="button" class="ai-chip" data-example="Paid $9.99 for a Spotify subscription this month">🎵 Subscription</button>
+                        </div>
+
                         <button type="button" class="submit-btn btn-ai" id="btn-ai-process" style="margin-top: 1.25rem;">
                             <span class="btn-text">Process Transaction</span>
                             <span class="btn-spinner hidden"></span>
