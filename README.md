@@ -1,6 +1,25 @@
-# Trackify 
+<div align="center">
 
-**Trackify** is a smart, interactive Student Budget Tracker designed to help students easily manage their income, expenses, and savings. Built with a Flask backend, SQLite database, and an intuitive, modern frontend, Trackify features **Gemini AI Integration** to automatically parse transactions from natural language.
+# 📊 Trackify
+### *Smart, AI-Powered Budget Tracking for Students*
+
+[![Python](https://img.shields.io/badge/Python-3.9+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
+[![Flask](https://img.shields.io/badge/Flask-000000?style=for-the-badge&logo=flask&logoColor=white)](https://flask.palletsprojects.com/)
+[![SQLite](https://img.shields.io/badge/SQLite-003B57?style=for-the-badge&logo=sqlite&logoColor=white)](https://www.sqlite.org/)
+[![Gemini](https://img.shields.io/badge/Google%20Gemini-8E75B2?style=for-the-badge&logo=googlegemini&logoColor=white)](https://aistudio.google.com/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
+
+<p align="center">
+  <b>Log expenses with natural language. Calculate net pay automatically. Ditch manual spreadsheets.</b>
+</p>
+
+---
+
+</div>
+
+**Trackify** is a smart, interactive Student Budget Tracker built with a Flask backend, SQLite database, Supabase auth, and a vanilla JS/CSS frontend. It uses **Gemini AI** to parse transactions from plain-English descriptions and can send a **weekly recap email** of your spending.
+
+Instead of entering amounts into rigid form inputs, you can write plain conversational entries like *"spent $14 on lunch at Subway"* or *"worked 6 hours at $17/hr"* — Trackify extracts the amount, category, date, and any hourly/tax calculations, and updates your ledger in real time.
 
 ---
 
@@ -17,30 +36,33 @@
 
 ## 🛠️ Tech Stack
 
-- **Backend:** Python (Flask)
-- **Database:** SQLite3
-- **Frontend:** HTML5, CSS3 (Vanilla), JavaScript (ES6+)
-- **AI Integration:** Google Gemini API (`gemini-3.1-flash-lite`)
+| Layer | Technologies |
+| :--- | :--- |
+| **Backend** | Python 3.9+, Flask |
+| **Database** | SQLite3 |
+| **Auth** | Supabase (JWT, verified via JWKS) |
+| **Frontend** | Vanilla HTML5, Modern CSS3, JavaScript (ES6+) |
+| **AI Integration** | Google Gemini API (`gemini-3.1-flash-lite`, `gemini-3.6-flash`) |
+| **Email** | Resend or SendGrid |
 
 ---
 
 ## ⚙️ Getting Started
 
 ### 1. Prerequisites
-Make sure you have Python 3.8+ installed on your machine.
+Make sure you have Python 3.9+ installed on your machine.
 
 ### 2. Installation
 Clone this repository (or navigate to your local copy) and set up a virtual environment:
 
 ```bash
-# Navigate to the project directory
-cd "Trackify V1"
+git clone https://github.com/EithanY-Coder/Trackify.git
+cd Trackify
 
-# Create a virtual environment
+# Create and activate a virtual environment
 python3 -m venv .venv
-
-# Activate the virtual environment
-source .venv/bin/activate
+source .venv/bin/activate      # macOS / Linux
+# .venv\Scripts\activate       # Windows
 
 # Install dependencies
 pip install -r requirements.txt
@@ -68,11 +90,24 @@ CRON_SECRET=""                 # protects the scheduler endpoint
 # DISABLE_SSL_VERIFY=true   # works around a local macOS certificate issue - local dev only
 ```
 
+`SUPABASE_URL` and `SUPABASE_ANON_KEY` are required — the app verifies logged-in users' tokens against your Supabase project's JWKS endpoint. (`SUPABASE_JWT_SECRET`, if present from an older setup, isn't used by the app.)
+
 Generate the two secrets with:
 
 ```bash
 python3 -c "import secrets; print(secrets.token_urlsafe(32))"
 ```
+
+*Note: `.env` is already configured in `.gitignore` to protect your API keys from leaking online.*
+
+### 4. Running the Application
+Launch the Flask development server:
+
+```bash
+python3 app.py
+```
+
+The application will start running at `http://127.0.0.1:5001/` (or your configured port). Open this address in your web browser.
 
 ---
 
@@ -133,19 +168,6 @@ Every email carries an unsubscribe link signed with `WEEKLY_EMAIL_SECRET`, plus
 RFC 8058 `List-Unsubscribe` headers for one-click unsubscribe in Gmail and Apple
 Mail. The link opens a confirmation page and only opts out on POST, so mail
 scanners that prefetch links can't unsubscribe someone by accident.
-
-`SUPABASE_URL` and `SUPABASE_ANON_KEY` are required — the app verifies logged-in users' tokens against your Supabase project's JWKS endpoint. (`SUPABASE_JWT_SECRET`, if present from an older setup, isn't used by the app.)
-
-*Note: `.env` is already configured in `.gitignore` to protect your API keys from leaking online.*
-
-### 4. Running the Application
-Launch the Flask development server:
-
-```bash
-python3 app.py
-```
-
-The application will start running at `http://127.0.0.1:5001/` (or your configured port). Open this address in your web browser.
 
 ---
 
