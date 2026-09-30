@@ -51,31 +51,70 @@ def init_db():
     # Create indexes for performance
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_transactions_user_id ON transactions(user_id);')
     
-    # Create goals table
+    # Create user settings table for weekly reminder preferences and timezone
     cursor.execute('''
-        CREATE TABLE IF NOT EXISTS goals (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id TEXT NOT NULL,
-            title TEXT NOT NULL,
-            target_amount REAL NOT NULL,
-            saved_amount REAL NOT NULL DEFAULT 0.0,
-            deadline TEXT NOT NULL,
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        CREATE TABLE IF NOT EXISTS user_settings (
+            user_id TEXT PRIMARY KEY,
+            weekly_email_enabled INTEGER NOT NULL DEFAULT 1,
+            weekly_email_timezone TEXT NOT NULL DEFAULT 'UTC',
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP
         )
     ''')
-    cursor.execute('CREATE INDEX IF NOT EXISTS idx_goals_user_id ON goals(user_id);')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_user_settings_user_id ON user_settings(user_id);')
+
+    # Create weekly email send log. The UNIQUE(user_id, week_start) pair is the
+    # duplicate guard: the job "claims" a row before sending, so two overlapping
+    # runs (cron firing twice, multiple gunicorn workers) can never both send the
+    # same user the same week's recap.
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS weekly_email_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT NOT NULL,
+            week_start TEXT NOT NULL, -- YYYY-MM-DD, Monday of the summarized week
+            status TEXT NOT NULL DEFAULT 'sending', -- sending | sent | failed | skipped
+            attempts INTEGER NOT NULL DEFAULT 0,
+            provider_message_id TEXT,
+            error TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(user_id, week_start)
+        )
+    ''')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_weekly_email_log_user_id ON weekly_email_log(user_id);')
+
+    # Create chat_sessions table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS chat_sessions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT NOT NULL,
+            title TEXT NOT NULL DEFAULT 'New Chat',
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_chat_sessions_user_id ON chat_sessions(user_id);')
 
     # Create chat_messages table
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS chat_messages (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id TEXT NOT NULL,
+            session_id INTEGER REFERENCES chat_sessions(id) ON DELETE CASCADE,
             role TEXT NOT NULL,
             content TEXT NOT NULL,
             created_at TEXT DEFAULT CURRENT_TIMESTAMP
         )
     ''')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_chat_messages_user_id ON chat_messages(user_id);')
+
+    # Migrate existing chat_messages: add session_id column if missing (safe for existing DBs)
+    existing_cols = [row[1] for row in cursor.execute('PRAGMA table_info(chat_messages)').fetchall()]
+    if 'session_id' not in existing_cols:
+        cursor.execute('ALTER TABLE chat_messages ADD COLUMN session_id INTEGER REFERENCES chat_sessions(id) ON DELETE CASCADE')
+
+    # Index on session_id (safe to run after column is guaranteed to exist)
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_chat_messages_session_id ON chat_messages(session_id);')
     
     # Pre-seed categories if empty
     cursor.execute('SELECT COUNT(*) FROM categories WHERE user_id IS NULL')
@@ -93,7 +132,11 @@ def init_db():
             'INSERT INTO categories (name, icon, color, user_id) VALUES (?, ?, ?, NULL)',
             default_categories
         )
-    
+
+    # The savings-goals feature was removed. One-time cleanup for databases
+    # created before this change - safe to run every startup (IF EXISTS).
+    cursor.execute('DROP TABLE IF EXISTS goals')
+
     conn.commit()
     conn.close()
 

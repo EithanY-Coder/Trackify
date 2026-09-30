@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap');
 
 /* ==========================================================================
    TRACKIFY DESIGN SYSTEM & GENERAL STYLES
@@ -33,7 +33,10 @@
     --border-radius-lg: 8px; /* sharp corners */
     --border-radius-md: 6px;
     --border-radius-sm: 4px;
-    --box-shadow-main: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05);
+    /* Tinted with the slate text color instead of flat black, so shadows read
+       as depth in the same "ink" as the UI rather than a generic gray smudge. */
+    --box-shadow-main: 0 1px 3px 0 rgba(17, 24, 39, 0.06), 0 1px 2px -1px rgba(17, 24, 39, 0.04);
+    --box-shadow-card-hover: 0 8px 20px -6px rgba(17, 24, 39, 0.12), 0 2px 6px -2px rgba(17, 24, 39, 0.06);
     --transition-smooth: all 0.2s ease;
 }
 
@@ -44,12 +47,28 @@
 }
 
 body {
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-family: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     background-color: var(--bg-primary);
+    /* Ambient background: three large, blurred, very-low-opacity color
+       blobs using the app's own existing accent colors (income green,
+       AI violet, expense red) - not new colors. Fixed to the viewport, so
+       it reads as page atmosphere rather than per-section decoration.
+       .main-content has no background-color of its own, so this shows
+       through the empty space around cards; opaque cards/sidebar still
+       sit cleanly on top. This is the main fix for pages reading as
+       "empty" at rest, independent of the tab-switch stagger animation. */
+    background-image:
+        radial-gradient(650px circle at 8% 8%, rgba(16, 185, 129, 0.06), transparent 60%),
+        radial-gradient(550px circle at 92% 15%, rgba(190, 75, 219, 0.05), transparent 60%),
+        radial-gradient(750px circle at 50% 105%, rgba(239, 68, 68, 0.035), transparent 60%);
+    background-attachment: fixed;
     color: var(--text-primary);
     min-height: 100vh;
     overflow-x: hidden;
     line-height: 1.5;
+    /* Digits keep a fixed width so money in a table or stat grid lines up
+       column-for-column instead of jittering with proportional figures. */
+    font-variant-numeric: tabular-nums;
 }
 
 /* Custom Scrollbars */
@@ -138,6 +157,10 @@ body {
     color: var(--text-primary);
 }
 
+.nav-btn:active {
+    background-color: rgba(0, 0, 0, 0.06);
+}
+
 .nav-btn.active {
     background-color: var(--text-primary);
     color: #FFFFFF;
@@ -213,7 +236,11 @@ body {
 }
 
 .card:hover {
-    border-color: rgba(255, 255, 255, 0.12);
+    /* Shadow-only, no lift/transform: .card wraps mostly static containers
+       (stat grids, charts), so a deeper shadow reads as ambient depth
+       without implying every card is clickable. */
+    border-color: var(--card-border-focus);
+    box-shadow: var(--box-shadow-card-hover);
 }
 
 .card-header {
@@ -273,6 +300,17 @@ body {
     }
 }
 
+/* Universal per-tab stagger entrance. JS (applyTabStagger in app.js) sets
+   animation-delay per element by actual index - deliberately not a
+   nth-child/nth-of-type CSS selector; that approach silently matched
+   nothing the first time it was tried here (nth-of-type counts by tag,
+   not class) and shipped as dead CSS until caught. Direct JS indexing
+   can't have that bug. Re-plays every time a tab is switched to, since
+   display:none resets CSS animation state.  */
+.stagger-item {
+    animation: tabFadeIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+
 /* ==========================================================================
    STATS CARDS GRID
    ========================================================================== */
@@ -282,6 +320,42 @@ body {
     border: 1px solid var(--card-border);
     border-radius: var(--border-radius-lg);
     background-color: var(--card-bg);
+    transition: var(--transition-smooth);
+}
+
+.stats-grid-unified:hover {
+    border-color: var(--card-border-focus);
+    box-shadow: var(--box-shadow-card-hover);
+}
+
+/* Spotlight hover: a soft glow that tracks the cursor. Applied app-wide to
+   every card (not just the dashboard) so every tab gets the same
+   interactive feel. --spot-x/--spot-y are set by a mousemove listener in
+   app.js (initSpotlightCards, delegated on document so it covers cards
+   that don't exist yet at page load). z-index:-1 pins the glow behind the
+   card's own (static, non-positioned) content rather than relying on
+   paint-order ambiguity between them. */
+.stats-grid-unified,
+.card.glass {
+    position: relative;
+    overflow: hidden;
+}
+
+.stats-grid-unified::before,
+.card.glass::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: radial-gradient(450px circle at var(--spot-x, 50%) var(--spot-y, 50%), rgba(17, 24, 39, 0.14), transparent 70%);
+    opacity: 0;
+    transition: opacity 0.4s ease;
+    pointer-events: none;
+}
+
+.stats-grid-unified:hover::before,
+.card.glass:hover::before {
+    opacity: 1;
 }
 
 .unified-stat-row {
@@ -471,6 +545,10 @@ body {
     box-shadow: none;
 }
 
+.filter-btn:active {
+    transform: scale(0.96);
+}
+
 .modal-content.modal-large {
     max-width: 800px;
 }
@@ -512,7 +590,7 @@ body {
 .progress-bar-bg {
     width: 100%;
     height: 8px;
-    background-color: rgba(255, 255, 255, 0.05);
+    background-color: rgba(17, 24, 39, 0.05);
     border-radius: 10px;
     overflow: hidden;
 }
@@ -551,7 +629,7 @@ body {
 
 .transaction-table td {
     padding: 0.9rem 1rem;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.02);
+    border-bottom: 1px solid rgba(17, 24, 39, 0.02);
     font-size: 0.95rem;
     vertical-align: middle;
 }
@@ -561,7 +639,7 @@ body {
 }
 
 .transaction-table tr:hover td {
-    background-color: rgba(255, 255, 255, 0.01);
+    background-color: rgba(17, 24, 39, 0.01);
 }
 
 /* Table Badges & Status */
@@ -602,6 +680,10 @@ body {
     color: var(--color-rose);
     background-color: rgba(244, 63, 94, 0.1);
     transform: scale(1.1);
+}
+
+.btn-delete:active {
+    transform: scale(0.95);
 }
 
 .view-all-link {
@@ -664,7 +746,7 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    background-color: rgba(255, 255, 255, 0.03);
+    background-color: rgba(17, 24, 39, 0.03);
     border: 1px solid var(--card-border);
     padding: 0.85rem 1.25rem;
     border-radius: var(--border-radius-md);
@@ -677,7 +759,7 @@ body {
 
 .custom-select-trigger:hover {
     border-color: var(--card-border-focus);
-    background-color: rgba(255, 255, 255, 0.05);
+    background-color: rgba(17, 24, 39, 0.05);
 }
 
 .custom-select-options {
@@ -714,7 +796,7 @@ body {
 }
 
 .custom-select-search {
-    background-color: rgba(255, 255, 255, 0.02);
+    background-color: rgba(17, 24, 39, 0.02);
     border: 1px solid var(--card-border);
     border-radius: var(--border-radius-sm);
     padding: 0.65rem 0.85rem;
@@ -744,7 +826,7 @@ body {
     background: transparent;
 }
 .options-list::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(17, 24, 39, 0.1);
     border-radius: 3px;
 }
 
@@ -761,7 +843,7 @@ body {
 }
 
 .custom-option:hover {
-    background-color: rgba(255, 255, 255, 0.05);
+    background-color: rgba(17, 24, 39, 0.05);
 }
 
 .custom-option.selected {
@@ -920,14 +1002,14 @@ select {
     left: 0;
     height: 18px;
     width: 18px;
-    background-color: rgba(255, 255, 255, 0.05);
+    background-color: rgba(17, 24, 39, 0.05);
     border: 1px solid var(--card-border);
     border-radius: 4px;
     transition: var(--transition-smooth);
 }
 
 .checkbox-container:hover input ~ .checkmark {
-    background-color: rgba(255, 255, 255, 0.1);
+    background-color: rgba(17, 24, 39, 0.1);
 }
 
 .checkbox-container input:checked ~ .checkmark {
@@ -955,9 +1037,53 @@ select {
     transform: rotate(45deg);
 }
 
+.switch {
+    position: relative;
+    display: inline-block;
+    width: 52px;
+    height: 30px;
+    flex-shrink: 0;
+}
+
+.switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.slider {
+    position: absolute;
+    cursor: pointer;
+    inset: 0;
+    background-color: rgba(148, 163, 184, 0.45);
+    border-radius: 999px;
+    transition: 0.2s ease;
+}
+
+.slider:before {
+    content: "";
+    position: absolute;
+    height: 22px;
+    width: 22px;
+    left: 4px;
+    top: 4px;
+    background-color: white;
+    border-radius: 50%;
+    transition: 0.2s ease;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.25);
+}
+
+.switch input:checked + .slider {
+    background: linear-gradient(135deg, var(--color-indigo), #8b5cf6);
+}
+
+.switch input:checked + .slider:before {
+    transform: translateX(22px);
+}
+
 .calculator-fields {
-    background: rgba(255, 255, 255, 0.015);
-    border: 1px dashed rgba(255, 255, 255, 0.06);
+    background: rgba(17, 24, 39, 0.015);
+    border: 1px dashed rgba(17, 24, 39, 0.06);
     border-radius: var(--border-radius-lg);
     padding: 1.25rem;
     margin-bottom: 1.25rem;
@@ -1008,6 +1134,10 @@ select {
 
 .submit-btn:hover {
     transform: translateY(-2px);
+}
+
+.submit-btn:active {
+    transform: translateY(0) scale(0.98);
 }
 
 .btn-expense {
@@ -1105,7 +1235,7 @@ select {
     width: 70px;
     height: 70px;
     border-radius: 50%;
-    background-color: rgba(255, 255, 255, 0.02);
+    background-color: rgba(17, 24, 39, 0.02);
     border: 1px solid var(--card-border);
     transition: var(--transition-smooth);
 }
@@ -1113,7 +1243,7 @@ select {
 .cat-setting-card:hover .cat-icon {
     transform: scale(1.1) rotate(5deg);
     border-color: currentColor;
-    background-color: rgba(255, 255, 255, 0.05);
+    background-color: rgba(17, 24, 39, 0.05);
 }
 
 .cat-setting-card h4 {
@@ -1152,12 +1282,12 @@ select {
 
 /* Grid & helper styling for SVGs */
 .chart-grid-line {
-    stroke: rgba(255, 255, 255, 0.035);
+    stroke: rgba(17, 24, 39, 0.035);
     stroke-width: 1px;
 }
 
 .chart-axis-line {
-    stroke: rgba(255, 255, 255, 0.1);
+    stroke: rgba(17, 24, 39, 0.1);
     stroke-width: 1.5px;
 }
 
@@ -1248,7 +1378,7 @@ select {
 /* Donut SVG styling */
 .donut-circle-bg {
     fill: none;
-    stroke: rgba(255, 255, 255, 0.02);
+    stroke: rgba(17, 24, 39, 0.02);
     stroke-width: 24;
 }
 
@@ -1291,7 +1421,7 @@ select {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    background-color: rgba(255, 255, 255, 0.03);
+    background-color: rgba(17, 24, 39, 0.03);
     border: 1px solid var(--card-border);
     padding: 0.85rem 1.25rem;
     border-radius: var(--border-radius-md);
@@ -1304,7 +1434,7 @@ select {
 
 .custom-datepicker-trigger:hover {
     border-color: var(--card-border-focus);
-    background-color: rgba(255, 255, 255, 0.05);
+    background-color: rgba(17, 24, 39, 0.05);
 }
 
 .custom-datepicker-calendar {
@@ -1348,7 +1478,7 @@ select {
 }
 
 .cal-nav-btn:hover {
-    background-color: rgba(255, 255, 255, 0.05);
+    background-color: rgba(17, 24, 39, 0.05);
     color: var(--text-primary);
 }
 
@@ -1384,7 +1514,7 @@ select {
 }
 
 .calendar-day:hover {
-    background-color: rgba(255, 255, 255, 0.05);
+    background-color: rgba(17, 24, 39, 0.05);
 }
 
 .calendar-day.selected {
@@ -1418,7 +1548,7 @@ select {
 
 /* Tax Toggle Button Styling */
 .tax-toggle-btn {
-    background-color: rgba(255, 255, 255, 0.02);
+    background-color: rgba(17, 24, 39, 0.02);
     border: 1px solid var(--card-border);
     color: var(--text-secondary);
     padding: 0.6rem 1.2rem;
@@ -1715,8 +1845,12 @@ select {
 }
 
 .cancel-btn:hover {
-    background-color: rgba(255, 255, 255, 0.05);
+    background-color: rgba(0, 0, 0, 0.03);
     color: var(--text-primary);
+}
+
+.cancel-btn:active {
+    transform: scale(0.97);
 }
 
 .modal-switcher {
@@ -1763,19 +1897,24 @@ select {
 }
 
 .action-menu-btn:hover {
-    background-color: rgba(255, 255, 255, 0.05);
+    background-color: rgba(17, 24, 39, 0.05);
     color: var(--text-primary);
 }
 
+/* position: fixed (not absolute) deliberately - these menus live inside
+   .table-responsive, which needs overflow:auto for horizontal scroll on
+   narrow screens, and an overflow:auto ancestor clips any descendant
+   positioned outside its box regardless of the descendant's own z-index.
+   Fixed positioning escapes that; toggleActionMenu() in app.js computes
+   top/left from the trigger button's real position on open, since fixed
+   elements can't use "top: 100%" of their (no longer relevant) parent. */
 .action-dropdown {
-    position: absolute;
-    right: 0;
-    top: 100%;
+    position: fixed;
     background-color: var(--bg-sidebar);
     border: 1px solid var(--card-border);
     border-radius: var(--border-radius-md);
     box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
-    z-index: 100;
+    z-index: 1200;
     min-width: 120px;
     padding: 0.35rem;
     display: flex;
@@ -1805,7 +1944,7 @@ select {
 }
 
 .action-dropdown button:hover {
-    background-color: rgba(255, 255, 255, 0.05);
+    background-color: rgba(17, 24, 39, 0.05);
     color: var(--text-primary);
 }
 
@@ -1819,7 +1958,7 @@ select {
    ========================================================================== */
 textarea#ai-prompt-input {
     width: 100%;
-    background: rgba(255, 255, 255, 0.03);
+    background: rgba(17, 24, 39, 0.03);
     border: 1px solid var(--card-border);
     border-radius: var(--border-radius-md);
     color: var(--text-primary);
@@ -1834,8 +1973,84 @@ textarea#ai-prompt-input {
 textarea#ai-prompt-input:focus {
     outline: none;
     border-color: #be4bdb;
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(17, 24, 39, 0.05);
     box-shadow: 0 0 0 3px rgba(190, 75, 219, 0.15);
+}
+
+/* Animated glow ring around the textarea while the AI is working - a
+   pulsing conic gradient behind it, visible only through the wrapper's
+   padding gap. Toggled by JS adding/removing .processing. */
+.ai-textarea-wrap {
+    position: relative;
+    border-radius: calc(var(--border-radius-md) + 3px);
+}
+
+.ai-textarea-wrap::before {
+    content: '';
+    position: absolute;
+    inset: -3px;
+    border-radius: inherit;
+    background: conic-gradient(from var(--ai-glow-angle, 0deg), #748ffc, #be4bdb, #748ffc);
+    opacity: 0;
+    z-index: -1;
+    transition: opacity 0.3s ease;
+}
+
+.ai-textarea-wrap.processing::before {
+    opacity: 1;
+    animation: aiGlowSpin 2.5s linear infinite;
+}
+
+@property --ai-glow-angle {
+    syntax: '<angle>';
+    initial-value: 0deg;
+    inherits: false;
+}
+
+@keyframes aiGlowSpin {
+    to { --ai-glow-angle: 360deg; }
+}
+
+/* Example prompt chips - click to drop a ready-made description into the
+   textarea. The main lever for "more interactive": zero typing needed to
+   see the feature work. */
+.ai-example-chips {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.85rem;
+}
+
+.ai-example-chips-label {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    margin-right: 0.15rem;
+}
+
+.ai-chip {
+    background: rgba(190, 75, 219, 0.06);
+    border: 1px solid rgba(190, 75, 219, 0.18);
+    color: var(--text-secondary);
+    padding: 0.4rem 0.85rem;
+    border-radius: 999px;
+    font-family: inherit;
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: var(--transition-smooth);
+}
+
+.ai-chip:hover {
+    background: rgba(190, 75, 219, 0.12);
+    border-color: rgba(190, 75, 219, 0.35);
+    color: var(--text-primary);
+    transform: translateY(-1px);
+}
+
+.ai-chip:active {
+    transform: translateY(0) scale(0.96);
 }
 
 .btn-ai {
@@ -1875,7 +2090,36 @@ textarea#ai-prompt-input:focus {
     border: 1px solid rgba(190, 75, 219, 0.3);
     box-shadow: 0 8px 32px rgba(190, 75, 219, 0.05);
     transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    animation: aiResultReveal 0.5s cubic-bezier(0.16, 1, 0.3, 1) backwards;
 }
+
+@keyframes aiResultReveal {
+    from {
+        opacity: 0;
+        transform: translateY(10px) scale(0.98);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* Each field in the parsed-result form cascades in on its own delay - reads
+   as "the AI is filling this in for you" rather than the form just
+   appearing fully formed. Re-plays every time the card is un-hidden
+   (display:none resets animation state, same mechanism as the dashboard
+   card stagger). */
+#ai-preview-form > * {
+    animation: tabFadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+#ai-preview-form > *:nth-child(1) { animation-delay: 0.08s; }
+#ai-preview-form > *:nth-child(2) { animation-delay: 0.14s; }
+#ai-preview-form > *:nth-child(3) { animation-delay: 0.20s; }
+#ai-preview-form > *:nth-child(4) { animation-delay: 0.26s; }
+#ai-preview-form > *:nth-child(5) { animation-delay: 0.32s; }
+#ai-preview-form > *:nth-child(6) { animation-delay: 0.38s; }
+#ai-preview-form > *:nth-child(7) { animation-delay: 0.42s; }
+#ai-preview-form > *:nth-child(8) { animation-delay: 0.46s; }
 
 .preview-switcher {
     margin-bottom: 1.25rem !important;
@@ -2046,111 +2290,6 @@ textarea#ai-prompt-input:focus {
     border-color: rgba(239, 68, 68, 0.4) !important;
 }
 
-/* Savings Goals styling */
-.span-3 {
-    grid-column: span 3;
-}
-
-@media (max-width: 1024px) {
-    .span-3 {
-        grid-column: span 1;
-    }
-}
-
-.goal-item {
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    border-radius: var(--border-radius-md);
-    padding: 1.25rem 1.5rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-    transition: var(--transition-smooth);
-}
-
-.goal-item:hover {
-    background: rgba(255, 255, 255, 0.06);
-    border-color: rgba(255, 255, 255, 0.1);
-}
-
-.goal-info {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.goal-title {
-    font-weight: 600;
-    color: var(--text-primary);
-    font-size: 1.05rem;
-}
-
-.goal-deadline {
-    font-size: 0.825rem;
-    color: var(--text-muted);
-}
-
-.goal-progress-container {
-    width: 100%;
-}
-
-.goal-progress-bar-bg {
-    width: 100%;
-    height: 8px;
-    background: rgba(255, 255, 255, 0.08);
-    border-radius: 4px;
-    overflow: hidden;
-    margin-bottom: 0.5rem;
-}
-
-.goal-progress-bar-fill {
-    height: 100%;
-    background: linear-gradient(90deg, var(--color-indigo) 0%, var(--color-violet) 100%);
-    border-radius: 4px;
-    width: 0%;
-    transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.goal-stats {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    font-size: 0.85rem;
-}
-
-.goal-amounts {
-    color: var(--text-secondary);
-}
-
-.goal-percentage {
-    font-weight: 700;
-    color: var(--color-indigo);
-}
-
-.goal-actions {
-    display: flex;
-    gap: 0.5rem;
-    justify-content: flex-end;
-    margin-top: 0.25rem;
-}
-
-.goal-btn-update {
-    background: none;
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    color: var(--text-primary);
-    padding: 0.35rem 0.75rem;
-    border-radius: var(--border-radius-sm);
-    font-size: 0.8rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: var(--transition-smooth);
-}
-
-.goal-btn-update:hover {
-    background: var(--color-indigo);
-    border-color: var(--color-indigo);
-    color: white;
-}
 
 /* AI Advisor Drawer & Floating Trigger */
 .advisor-floating-trigger {
@@ -2233,28 +2372,56 @@ textarea#ai-prompt-input:focus {
 .drawer-title-area {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
+    gap: 0.6rem;
+    min-width: 0;
+    flex: 1;
+    margin-right: 0.5rem;
 }
 
-.drawer-title-area h3 {
-    margin: 0;
-    font-size: 1.25rem;
-    font-weight: 700;
+.drawer-session-picker-wrap {
+    min-width: 0;
+    flex: 1;
+}
+
+.drawer-session-select {
+    width: 100%;
+    max-width: 180px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 8px;
+    color: #ffffff;
+    padding: 0.35rem 0.6rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    text-overflow: ellipsis;
+    outline: none;
+    transition: var(--transition-smooth);
+}
+
+.drawer-session-select:focus {
+    border-color: var(--color-indigo);
+    background: rgba(255, 255, 255, 0.12);
+}
+
+.drawer-session-select option {
+    background: #0f172a;
     color: #ffffff;
 }
 
 .drawer-actions {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
+    gap: 0.5rem;
+    flex-shrink: 0;
 }
 
 .drawer-action-btn {
-    background: none;
-    border: none;
-    color: rgba(255, 255, 255, 0.5);
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.7);
     cursor: pointer;
-    padding: 0.5rem;
+    padding: 0.45rem 0.55rem;
     border-radius: var(--border-radius-sm);
     display: flex;
     align-items: center;
@@ -2263,8 +2430,14 @@ textarea#ai-prompt-input:focus {
 }
 
 .drawer-action-btn:hover {
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(255, 255, 255, 0.12);
+    color: #ffffff;
+}
+
+.drawer-action-btn#btn-clear-chat:hover {
+    background: rgba(239, 68, 68, 0.15);
     color: var(--color-rose);
+    border-color: rgba(239, 68, 68, 0.3);
 }
 
 .close-drawer-btn {
@@ -2472,10 +2645,180 @@ body.advisor-tab-active .advisor-floating-trigger {
 
 .advisor-fullscreen {
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
     height: 100%;
     background: #f4f6fb;
+    overflow: hidden;
 }
+
+/* ---- Sessions Sidebar ---- */
+.advisor-sessions-sidebar {
+    width: 260px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    background: #ffffff;
+    border-right: 1px solid #dde2ee;
+    overflow: hidden;
+}
+
+.advisor-sessions-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1.1rem 1rem 0.9rem;
+    border-bottom: 1px solid #eef0f6;
+    flex-shrink: 0;
+}
+
+.advisor-sessions-label {
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #8a98b5;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+}
+
+.advisor-new-chat-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+    border: none;
+    color: white;
+    padding: 0.45rem 0.9rem;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition-smooth);
+    box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+}
+
+.advisor-new-chat-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);
+}
+
+.advisor-sessions-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0.5rem 0;
+}
+
+.advisor-session-item {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.75rem 1rem;
+    cursor: pointer;
+    border-radius: 0;
+    transition: background 0.15s ease;
+    position: relative;
+    border-left: 3px solid transparent;
+}
+
+.advisor-session-item:hover {
+    background: #f4f6fb;
+}
+
+.advisor-session-item.active {
+    background: #eff0fe;
+    border-left-color: #6366f1;
+}
+
+.advisor-session-icon {
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    background: #eef0f6;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    color: #8a98b5;
+    transition: background 0.15s;
+}
+
+.advisor-session-item.active .advisor-session-icon {
+    background: rgba(99, 102, 241, 0.12);
+    color: #6366f1;
+}
+
+.advisor-session-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.advisor-session-title {
+    font-size: 0.86rem;
+    font-weight: 600;
+    color: #1a2744;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.advisor-session-item.active .advisor-session-title {
+    color: #4f46e5;
+}
+
+.advisor-session-date {
+    font-size: 0.72rem;
+    color: #9aaabb;
+    margin-top: 0.1rem;
+}
+
+.advisor-session-delete {
+    width: 26px;
+    height: 26px;
+    border-radius: 6px;
+    background: transparent;
+    border: none;
+    color: #9aaabb;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0.4;
+    transition: all 0.15s ease;
+    flex-shrink: 0;
+    position: relative;
+    z-index: 5;
+}
+
+.advisor-session-item:hover .advisor-session-delete {
+    opacity: 1;
+}
+
+.advisor-session-delete svg,
+.advisor-session-delete path,
+.advisor-session-delete line,
+.advisor-session-delete polyline {
+    pointer-events: none;
+}
+
+.advisor-session-delete:hover {
+    background: #fee2e2;
+    color: #ef4444;
+}
+
+.advisor-sessions-empty {
+    padding: 2rem 1rem;
+    text-align: center;
+    color: #9aaabb;
+    font-size: 0.875rem;
+}
+
+/* ---- Main Chat Panel ---- */
+.advisor-chat-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    overflow: hidden;
+}
+
 
 /* Header */
 .advisor-fs-header {
