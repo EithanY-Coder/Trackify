@@ -150,8 +150,13 @@ Base all your advice on the user's real-time financial profile provided below. H
     # 5. Call Gemini (its own try/except: external-API failures get a
     # specific, non-leaky message instead of falling through to the
     # generic 500 handler)
+    # http_options timeout is required here: this SDK call had no timeout at
+    # all, found by observing a real chat request hang indefinitely with no
+    # error, no rate-limit info, nothing - just a typing indicator stuck
+    # forever. /api/ai/parse-transaction already sets one on its raw
+    # requests.post call; this is the same fix for the SDK-based call.
     try:
-        client = genai.Client(api_key=api_key)
+        client = genai.Client(api_key=api_key, http_options=types.HttpOptions(timeout=30000))
         response = client.models.generate_content(
             model='gemini-3.6-flash',
             contents=contents,

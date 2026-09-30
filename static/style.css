@@ -1901,15 +1901,20 @@ select {
     color: var(--text-primary);
 }
 
+/* position: fixed (not absolute) deliberately - these menus live inside
+   .table-responsive, which needs overflow:auto for horizontal scroll on
+   narrow screens, and an overflow:auto ancestor clips any descendant
+   positioned outside its box regardless of the descendant's own z-index.
+   Fixed positioning escapes that; toggleActionMenu() in app.js computes
+   top/left from the trigger button's real position on open, since fixed
+   elements can't use "top: 100%" of their (no longer relevant) parent. */
 .action-dropdown {
-    position: absolute;
-    right: 0;
-    top: 100%;
+    position: fixed;
     background-color: var(--bg-sidebar);
     border: 1px solid var(--card-border);
     border-radius: var(--border-radius-md);
     box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
-    z-index: 100;
+    z-index: 1200;
     min-width: 120px;
     padding: 0.35rem;
     display: flex;

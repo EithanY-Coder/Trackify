@@ -67,7 +67,6 @@ const elements = {
     incomeDesc: document.getElementById('income-desc'),
     
     newCatName: document.getElementById('new-cat-name'),
-    newCatIcon: document.getElementById('new-cat-icon'),
     newCatColor: document.getElementById('new-cat-color'),
     
     // Lists
@@ -1460,9 +1459,10 @@ function initFormSubmissions() {
     elements.customCategoryForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         
+        // There's no icon picker in this form - the backend defaults icon
+        // to '📦' when omitted, which is exactly what we want here.
         const data = {
             name: elements.newCatName.value,
-            icon: elements.newCatIcon.value,
             color: elements.newCatColor.value
         };
         
@@ -2109,7 +2109,16 @@ function toggleActionMenu(event, btnElement) {
     closeAllActionMenus();
     closeAllCustomDropdowns();
     if (wasHidden) {
+        // .action-dropdown is position:fixed (see style.css comment for
+        // why) so it has to be placed in viewport coordinates here rather
+        // than relying on a CSS "top: 100%" of its container.
+        const btnRect = btnElement.getBoundingClientRect();
         dropdown.classList.remove('hidden');
+        const dropdownWidth = dropdown.offsetWidth;
+        let left = btnRect.right - dropdownWidth;
+        left = Math.max(8, Math.min(left, window.innerWidth - dropdownWidth - 8));
+        dropdown.style.left = `${left}px`;
+        dropdown.style.top = `${btnRect.bottom + 4}px`;
     }
 }
 
