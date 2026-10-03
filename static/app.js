@@ -9,6 +9,7 @@ const state = {
     chartFilter: 'all', // 'all', 'month', 'week'
     dashboardRange: 'all', // 'all', 'week', 'month', '6months', 'ytd', 'year'
     currentUser: null,
+    profile: null, // onboarding profile from /api/profile, or null
     authMode: 'login' // 'login' or 'register'
 };
 
@@ -134,6 +135,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Wire up the marketing cover page (About scroll-reveal, CTA hand-off)
     initCoverPage();
+
+    // First-login welcome popup and the Settings "Your profile" card
+    initOnboarding();
+    initProfileSettings();
 
     // Check authentication and initialize app data
     initAuth();
@@ -372,6 +377,7 @@ async function initAuth() {
             // ever attached from the "no session" branch below.
             setupAuthEventListeners();
             fetchData();
+            loadProfileAndOnboard(session.user);
             // Dashboard starts marked active in the server-rendered HTML
             // (never goes through switchTab() on first load), so it needs
             // its own stagger trigger here.
@@ -536,6 +542,7 @@ function setupAuthEventListeners() {
                 // Straight back to the login form, not the marketing cover -
                 // a logout is a returning user, not a first-time visitor.
                 state.currentUser = null;
+                resetProfileState();
                 elements.appContainer.classList.add('hidden');
                 elements.coverContainer.classList.add('hidden');
                 elements.authContainer.classList.remove('hidden');
@@ -554,6 +561,7 @@ function setupAuthEventListeners() {
 
 async function handleSessionExpiry() {
     state.currentUser = null;
+    resetProfileState();
     try {
         await supabaseClient.auth.signOut();
     } catch (e) {
@@ -587,6 +595,397 @@ async function apiCall(url, options = {}) {
         }
         throw err;
     }
+}
+
+// ==========================================================================
+// ONBOARDING & PROFILE (first-login welcome popup, greetings, Settings card)
+// ==========================================================================
+
+// Accounts created before the welcome popup shipped never see it - they can
+// still fill in their profile from Settings. Compared against Supabase's
+// user.created_at.
+const ONBOARDING_CUTOFF = '2026-10-03T00:00:00Z';
+
+const LIFE_STAGE_OPTIONS = [
+    { value: 'student', label: 'Student' },
+    { value: 'adult', label: 'Adult' },
+    { value: 'retired', label: 'Retired' }
+];
+
+const PROFILE_NAME_MAX = 50;
+const PROFILE_GOAL_MAX = 500;
+const ONBOARDING_SUCCESS_HOLD_MS = 1700;
+
+// Life-stage dropdown instances, created in initOnboarding/initProfileSettings
+let onboardingStageSelect = null;
+let settingsStageSelect = null;
+
+function isNewSignup(user) {
+    return !!(user && user.created_at && new Date(user.created_at) >= new Date(ONBOARDING_CUTOFF));
+}
+
+async function fetchProfile() {
+    const response = await apiCall('/api/profile');
+    if (!response.ok) throw new Error('Failed to load profile');
+    const data = await response.json();
+    state.profile = data.profile || null;
+}
+
+// Runs after login: loads the profile, personalizes the UI, and opens the
+// welcome popup for brand-new accounts that haven't filled it in yet.
+async function loadProfileAndOnboard(user) {
+    try {
+        await fetchProfile();
+    } catch (err) {
+        console.error('Error fetching profile:', err);
+        return;
+    }
+    applyProfileGreeting();
+    populateProfileSettings();
+    renderAdvisorHistory();
+    if (!state.profile && isNewSignup(user)) {
+        openOnboarding();
+    }
+}
+
+function applyProfileGreeting() {
+    const greetingEl = document.getElementById('dashboard-greeting');
+    const profile = state.profile;
+    if (greetingEl) {
+        greetingEl.textContent = profile ? `Hi ${profile.first_name}` : 'Financial Overview';
+    }
+    if (profile) {
+        elements.sidebarUserWelcome.textContent = `${profile.first_name} ${profile.last_name}`;
+    } else {
+        elements.sidebarUserWelcome.textContent = state.currentUser ? `Logged in as ${state.currentUser}` : 'Welcome!';
+    }
+}
+
+// Called on logout / session expiry so the next account starts clean.
+function resetProfileState() {
+    state.profile = null;
+    closeOnboarding(true);
+    applyProfileGreeting();
+    populateProfileSettings();
+}
+
+// Same rules as helpers.parse_profile_payload on the backend. Returns an
+// error message, or null when the payload is valid.
+function validateProfilePayload(payload) {
+    if (!payload.first_name) return 'Please enter your first name.';
+    if (!payload.last_name) return 'Please enter your last name.';
+    if (payload.first_name.length > PROFILE_NAME_MAX || payload.last_name.length > PROFILE_NAME_MAX) {
+        return `Names must be ${PROFILE_NAME_MAX} characters or fewer.`;
+    }
+    if (!payload.life_stage) return 'Please choose whether you are a student, adult or retired.';
+    if (!payload.savings_goal) return 'Please tell us a little about your goals and finances.';
+    if (payload.savings_goal.length > PROFILE_GOAL_MAX) {
+        return `This must be ${PROFILE_GOAL_MAX} characters or fewer.`;
+    }
+    return null;
+}
+
+async function saveProfile(payload) {
+    const response = await apiCall('/api/profile', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+        throw new Error(data.error || 'Could not save your profile. Please try again.');
+    }
+    state.profile = data.profile;
+    applyProfileGreeting();
+    populateProfileSettings();
+    renderAdvisorHistory();
+}
+
+function showProfileError(el, message) {
+    if (!el) return;
+    el.textContent = message || '';
+    el.classList.toggle('hidden', !message);
+}
+
+function wireGoalCounter(textarea, counter) {
+    const update = () => {
+        const len = textarea.value.length;
+        counter.textContent = `${len}/${PROFILE_GOAL_MAX}`;
+        counter.classList.toggle('near-limit', len > PROFILE_GOAL_MAX - 50);
+    };
+    textarea.addEventListener('input', update);
+    update();
+    return update;
+}
+
+// Builds an accessible custom dropdown (listbox) inside `container`, styled
+// like the dashboard "Showing" dropdown. Returns { getValue, setValue }.
+function createLifeStageSelect(container) {
+    const labelId = container.dataset.labelledby;
+    const listId = `${container.id}-list`;
+    container.innerHTML = `
+        <button type="button" class="life-stage-trigger" aria-haspopup="listbox" aria-expanded="false" aria-controls="${listId}" ${labelId ? `aria-labelledby="${labelId} ${container.id}-value"` : ''}>
+            <span class="life-stage-value is-placeholder" id="${container.id}-value">Choose one</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="life-stage-chevron" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="life-stage-options hidden" role="listbox" id="${listId}" ${labelId ? `aria-labelledby="${labelId}"` : ''}>
+            ${LIFE_STAGE_OPTIONS.map(o => `<div class="life-stage-option" role="option" tabindex="-1" aria-selected="false" data-value="${o.value}">${o.label}</div>`).join('')}
+        </div>
+    `;
+
+    const trigger = container.querySelector('.life-stage-trigger');
+    const valueEl = container.querySelector('.life-stage-value');
+    const list = container.querySelector('.life-stage-options');
+    const options = Array.from(container.querySelectorAll('.life-stage-option'));
+    let value = '';
+
+    const isOpen = () => !list.classList.contains('hidden');
+
+    const open = () => {
+        list.classList.remove('hidden');
+        trigger.classList.add('open');
+        trigger.setAttribute('aria-expanded', 'true');
+        const selected = options.find(o => o.dataset.value === value) || options[0];
+        selected.focus();
+    };
+
+    const close = (refocus) => {
+        if (!isOpen()) return;
+        list.classList.add('hidden');
+        trigger.classList.remove('open');
+        trigger.setAttribute('aria-expanded', 'false');
+        if (refocus) trigger.focus();
+    };
+
+    const setValue = (newValue) => {
+        const match = LIFE_STAGE_OPTIONS.find(o => o.value === newValue);
+        value = match ? match.value : '';
+        valueEl.textContent = match ? match.label : 'Choose one';
+        valueEl.classList.toggle('is-placeholder', !match);
+        options.forEach(o => {
+            const selected = o.dataset.value === value;
+            o.classList.toggle('active', selected);
+            o.setAttribute('aria-selected', String(selected));
+        });
+    };
+
+    trigger.addEventListener('click', (e) => {
+        e.stopPropagation();
+        isOpen() ? close(false) : open();
+    });
+
+    trigger.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+            e.preventDefault();
+            open();
+        }
+    });
+
+    options.forEach((opt, i) => {
+        opt.addEventListener('click', (e) => {
+            e.stopPropagation();
+            setValue(opt.dataset.value);
+            close(true);
+        });
+        opt.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                options[(i + 1) % options.length].focus();
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                options[(i - 1 + options.length) % options.length].focus();
+            } else if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                setValue(opt.dataset.value);
+                close(true);
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                e.stopPropagation();
+                close(true);
+            } else if (e.key === 'Tab') {
+                close(false);
+            }
+        });
+    });
+
+    document.addEventListener('click', (e) => {
+        if (!container.contains(e.target)) close(false);
+    });
+
+    return { getValue: () => value, setValue };
+}
+
+function readProfileForm(prefix, stageSelect) {
+    return {
+        first_name: document.getElementById(`${prefix}-first-name`).value.trim(),
+        last_name: document.getElementById(`${prefix}-last-name`).value.trim(),
+        life_stage: stageSelect ? stageSelect.getValue() : '',
+        savings_goal: document.getElementById(`${prefix}-goal`).value.trim()
+    };
+}
+
+// ---- Welcome popup ----
+
+function getOnboardingFocusables() {
+    const modal = document.getElementById('onboarding-modal');
+    return Array.from(modal.querySelectorAll('button, input, textarea, [tabindex="0"]'))
+        .filter(el => !el.disabled && el.offsetParent !== null);
+}
+
+function setAppInert(inert) {
+    ['app-container', 'btn-advisor-float', 'advisor-drawer'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.inert = inert;
+    });
+}
+
+function openOnboarding() {
+    const modal = document.getElementById('onboarding-modal');
+    if (!modal || modal.classList.contains('open')) return;
+
+    document.getElementById('onboarding-form').reset();
+    if (onboardingStageSelect) onboardingStageSelect.setValue('');
+    document.getElementById('onboarding-goal').dispatchEvent(new Event('input'));
+    showProfileError(document.getElementById('onboarding-error'), '');
+    document.getElementById('onboarding-form-step').classList.remove('hidden', 'is-leaving');
+    document.getElementById('onboarding-success-step').classList.add('hidden');
+
+    modal.classList.remove('hidden', 'is-closing');
+    setAppInert(true);
+    document.body.classList.add('onboarding-active');
+    // Reflow so the .open transition runs from the hidden state
+    void modal.offsetWidth;
+    modal.classList.add('open');
+
+    setTimeout(() => document.getElementById('onboarding-first-name').focus({ preventScroll: true }), 700);
+}
+
+function closeOnboarding(immediate = false) {
+    const modal = document.getElementById('onboarding-modal');
+    if (!modal || modal.classList.contains('hidden')) return;
+
+    const finish = () => {
+        modal.classList.add('hidden');
+        modal.classList.remove('open', 'is-closing');
+        setAppInert(false);
+        document.body.classList.remove('onboarding-active');
+    };
+
+    if (immediate) {
+        finish();
+        return;
+    }
+    modal.classList.add('is-closing');
+    modal.classList.remove('open');
+    setTimeout(finish, 550);
+}
+
+function initOnboarding() {
+    const modal = document.getElementById('onboarding-modal');
+    if (!modal) return;
+
+    onboardingStageSelect = createLifeStageSelect(document.getElementById('onboarding-stage-select'));
+    modal.querySelectorAll('.onboarding-reveal').forEach((el, i) => el.style.setProperty('--i', i));
+    wireGoalCounter(document.getElementById('onboarding-goal'), document.getElementById('onboarding-goal-count'));
+
+    // Required popup: Escape does nothing, and Tab stays inside the card.
+    modal.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            e.preventDefault();
+            return;
+        }
+        if (e.key !== 'Tab') return;
+        const focusables = getOnboardingFocusables();
+        if (focusables.length === 0) return;
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+            e.preventDefault();
+            last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+            e.preventDefault();
+            first.focus();
+        }
+    });
+
+    const form = document.getElementById('onboarding-form');
+    const submitBtn = document.getElementById('btn-onboarding-submit');
+    const errorEl = document.getElementById('onboarding-error');
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const payload = readProfileForm('onboarding', onboardingStageSelect);
+        const validationError = validateProfilePayload(payload);
+        showProfileError(errorEl, validationError);
+        if (validationError) return;
+
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Saving...';
+        try {
+            await saveProfile(payload);
+            document.getElementById('onboarding-success-title').textContent = `You're all set, ${state.profile.first_name}`;
+            const formStep = document.getElementById('onboarding-form-step');
+            const successStep = document.getElementById('onboarding-success-step');
+            formStep.classList.add('is-leaving');
+            setTimeout(() => {
+                formStep.classList.add('hidden');
+                successStep.classList.remove('hidden');
+            }, 260);
+            setTimeout(() => closeOnboarding(), 260 + ONBOARDING_SUCCESS_HOLD_MS);
+        } catch (err) {
+            if (err.message !== 'Unauthorized') showProfileError(errorEl, err.message);
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Get started';
+        }
+    });
+}
+
+// ---- Settings "Your profile" card ----
+
+let refreshSettingsGoalCounter = null;
+
+function populateProfileSettings() {
+    const profile = state.profile;
+    const first = document.getElementById('profile-first-name');
+    if (!first) return;
+    first.value = profile ? profile.first_name : '';
+    document.getElementById('profile-last-name').value = profile ? profile.last_name : '';
+    document.getElementById('profile-goal').value = profile ? profile.savings_goal : '';
+    if (settingsStageSelect) settingsStageSelect.setValue(profile ? profile.life_stage : '');
+    if (refreshSettingsGoalCounter) refreshSettingsGoalCounter();
+    showProfileError(document.getElementById('profile-settings-error'), '');
+}
+
+function initProfileSettings() {
+    const form = document.getElementById('profile-settings-form');
+    if (!form) return;
+
+    settingsStageSelect = createLifeStageSelect(document.getElementById('profile-stage-select'));
+    refreshSettingsGoalCounter = wireGoalCounter(document.getElementById('profile-goal'), document.getElementById('profile-goal-count'));
+
+    const saveBtn = document.getElementById('btn-profile-save');
+    const errorEl = document.getElementById('profile-settings-error');
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const payload = readProfileForm('profile', settingsStageSelect);
+        const validationError = validateProfilePayload(payload);
+        showProfileError(errorEl, validationError);
+        if (validationError) return;
+
+        saveBtn.disabled = true;
+        saveBtn.textContent = 'Saving...';
+        try {
+            await saveProfile(payload);
+            showToast('Profile saved.', 'success');
+        } catch (err) {
+            if (err.message !== 'Unauthorized') showProfileError(errorEl, err.message);
+        } finally {
+            saveBtn.disabled = false;
+            saveBtn.textContent = 'Save profile';
+        }
+    });
 }
 
 // ==========================================================================
@@ -873,17 +1272,18 @@ function getActiveChatArea() {
 }
 
 function renderAdvisorHistory() {
+    const firstName = state.profile ? escapeHtml(state.profile.first_name) : '';
     const welcomeHtml = `
         <div class="advisor-fs-welcome">
             <span class="advisor-fs-eyebrow">AI Advisor</span>
-            <h3>Hi, I'm your Trackify financial coach.</h3>
+            <h3>${firstName ? `Hi ${firstName}, I'm your Trackify financial coach.` : "Hi, I'm your Trackify financial coach."}</h3>
             <p>I can see your real spending and budget categories. Ask me anything, from cutting costs to hitting your targets faster.</p>
         </div>
     `;
     const drawerWelcomeHtml = `
         <div class="advisor-welcome-msg">
             <div class="advisor-avatar">🤖</div>
-            <p>Hi there! I am your <strong>Trackify Financial Coach</strong>. I can analyze your MTD spending and help you build healthy budget habits. How can I help you today?</p>
+            <p>Hi ${firstName || 'there'}! I am your <strong>Trackify Financial Coach</strong>. I can analyze your MTD spending and help you build healthy budget habits. How can I help you today?</p>
         </div>
     `;
 

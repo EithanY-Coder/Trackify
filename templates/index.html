@@ -245,7 +245,7 @@
             <!-- TAB 1: Dashboard -->
             <section id="dashboard" class="tab-content active">
                 <div class="content-header">
-                    <h2>Financial Overview</h2>
+                    <h2 id="dashboard-greeting">Financial Overview</h2>
                     <p class="subtitle">Here's how your budget is looking</p>
                 </div>
 
@@ -759,6 +759,35 @@
                     <p class="subtitle">Control your account and reminder preferences</p>
                 </div>
 
+                <div class="card glass profile-settings-card" style="max-width: 720px; margin: 0 auto 1.5rem;">
+                    <h3>Your profile</h3>
+                    <p class="card-desc">Your AI Advisor uses this to tailor its saving advice to you.</p>
+
+                    <form id="profile-settings-form" class="profile-form" novalidate>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="profile-first-name">First name</label>
+                                <input type="text" id="profile-first-name" maxlength="50" autocomplete="given-name" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="profile-last-name">Last name</label>
+                                <input type="text" id="profile-last-name" maxlength="50" autocomplete="family-name" required>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label id="profile-stage-label">I am</label>
+                            <div class="life-stage-select" id="profile-stage-select" data-labelledby="profile-stage-label"></div>
+                        </div>
+                        <div class="form-group">
+                            <label for="profile-goal">Help me get to know you <span class="label-hint">(saving goals, finances, spending habits, etc.)</span></label>
+                            <textarea id="profile-goal" class="profile-goal-input" maxlength="500" rows="3" placeholder="e.g. I'm saving up for a car, I work part-time, and I spend too much on takeout" required></textarea>
+                            <span class="profile-goal-count" id="profile-goal-count">0/500</span>
+                        </div>
+                        <p class="profile-form-error hidden" id="profile-settings-error" role="alert"></p>
+                        <button type="submit" class="submit-btn profile-save-btn" id="btn-profile-save">Save profile</button>
+                    </form>
+                </div>
+
                 <div class="card glass" style="max-width: 720px; margin: 0 auto;">
                     <h3>Email reminders</h3>
                     <p class="card-desc">Turn weekly spending recap emails on or off at any time.</p>
@@ -1098,6 +1127,51 @@
 
     <!-- Backdrop overlay for drawer -->
     <div class="drawer-backdrop" id="advisor-drawer-backdrop"></div>
+
+    <!-- First-login welcome / onboarding popup. Required: no close button,
+         Escape and backdrop clicks are ignored (see initOnboarding in app.js). -->
+    <div id="onboarding-modal" class="onboarding-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="onboarding-title">
+        <div class="onboarding-card">
+            <div class="onboarding-step" id="onboarding-form-step">
+                <img src="{{ url_for('static', filename='trackify-logo.png') }}" alt="" class="onboarding-logo onboarding-reveal">
+                <h2 id="onboarding-title" class="onboarding-title onboarding-reveal">Welcome to Trackify</h2>
+                <p class="onboarding-subtitle onboarding-reveal">Tell us a little about yourself so your AI Advisor can give advice that actually fits you.</p>
+
+                <form id="onboarding-form" class="profile-form" novalidate>
+                    <div class="form-row onboarding-reveal">
+                        <div class="form-group">
+                            <label for="onboarding-first-name">First name</label>
+                            <input type="text" id="onboarding-first-name" maxlength="50" autocomplete="given-name" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="onboarding-last-name">Last name</label>
+                            <input type="text" id="onboarding-last-name" maxlength="50" autocomplete="family-name" required>
+                        </div>
+                    </div>
+                    <div class="form-group onboarding-reveal">
+                        <label id="onboarding-stage-label">I am</label>
+                        <div class="life-stage-select" id="onboarding-stage-select" data-labelledby="onboarding-stage-label"></div>
+                    </div>
+                    <div class="form-group onboarding-reveal">
+                        <label for="onboarding-goal">Help me get to know you <span class="label-hint">(saving goals, finances, spending habits, etc.)</span></label>
+                        <textarea id="onboarding-goal" class="profile-goal-input" maxlength="500" rows="3" placeholder="e.g. I'm saving up for a car, I work part-time, and I spend too much on takeout" required></textarea>
+                        <span class="profile-goal-count" id="onboarding-goal-count">0/500</span>
+                    </div>
+                    <p class="profile-form-error hidden" id="onboarding-error" role="alert"></p>
+                    <button type="submit" class="submit-btn onboarding-submit onboarding-reveal" id="btn-onboarding-submit">Get started</button>
+                </form>
+            </div>
+
+            <div class="onboarding-step onboarding-success hidden" id="onboarding-success-step" aria-live="polite">
+                <svg class="onboarding-check" width="64" height="64" viewBox="0 0 64 64" aria-hidden="true">
+                    <circle class="onboarding-check-ring" cx="32" cy="32" r="29" fill="none" stroke-width="2.5"/>
+                    <path class="onboarding-check-mark" d="M20 33l8.5 8.5L45 25" fill="none" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <h2 class="onboarding-title" id="onboarding-success-title">You're all set</h2>
+                <p class="onboarding-subtitle">Your dashboard and AI Advisor are now personalized for you.</p>
+            </div>
+        </div>
+    </div>
 
     <!-- Notification Toast -->
     <div id="toast-container" class="toast-container"></div>
