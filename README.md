@@ -5,7 +5,7 @@
 
 [![Python](https://img.shields.io/badge/Python-3.9+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
 [![Flask](https://img.shields.io/badge/Flask-000000?style=for-the-badge&logo=flask&logoColor=white)](https://flask.palletsprojects.com/)
-[![SQLite](https://img.shields.io/badge/SQLite-003B57?style=for-the-badge&logo=sqlite&logoColor=white)](https://www.sqlite.org/)
+[![Postgres](https://img.shields.io/badge/Postgres-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)](https://supabase.com/)
 [![Gemini](https://img.shields.io/badge/Google%20Gemini-8E75B2?style=for-the-badge&logo=googlegemini&logoColor=white)](https://aistudio.google.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
 
@@ -17,7 +17,7 @@
 
 </div>
 
-**Trackify** is a smart, interactive Student Budget Tracker built with a Flask backend, SQLite database, Supabase auth, and a vanilla JS/CSS frontend. It uses **Gemini AI** to parse transactions from plain-English descriptions and can send a **weekly recap email** of your spending.
+**Trackify** is a smart, interactive Student Budget Tracker built with a Flask backend, Supabase (Postgres database + auth), and a vanilla JS/CSS frontend. It uses **Gemini AI** to parse transactions from plain-English descriptions and can send a **weekly recap email** of your spending.
 
 Instead of entering amounts into rigid form inputs, you can write plain conversational entries like *"spent $14 on lunch at Subway"* or *"worked 6 hours at $17/hr"* — Trackify extracts the amount, category, date, and any hourly/tax calculations, and updates your ledger in real time.
 
@@ -39,7 +39,7 @@ Instead of entering amounts into rigid form inputs, you can write plain conversa
 | Layer | Technologies |
 | :--- | :--- |
 | **Backend** | Python 3.9+, Flask |
-| **Database** | SQLite3 |
+| **Database** | Postgres (Supabase) |
 | **Auth** | Supabase (JWT, verified via JWKS) |
 | **Frontend** | Vanilla HTML5, Modern CSS3, JavaScript (ES6+) |
 | **AI Integration** | Google Gemini API (`gemini-3.1-flash-lite`, `gemini-3.6-flash`) |
@@ -72,6 +72,7 @@ pip install -r requirements.txt
 Create a file named `.env` in the root directory (do not commit this file to Git):
 
 ```env
+DATABASE_URL="postgresql://postgres.<ref>:<password>@aws-0-<region>.pooler.supabase.com:6543/postgres"
 GEMINI_API_KEY="your_actual_gemini_api_key_here"
 SUPABASE_URL="https://your-project-ref.supabase.co"
 SUPABASE_ANON_KEY="your_supabase_publishable_or_anon_key"
@@ -89,6 +90,8 @@ CRON_SECRET=""                 # protects the scheduler endpoint
 # FLASK_DEBUG=true          # enables Flask's interactive debugger - local dev only, never in production
 # DISABLE_SSL_VERIFY=true   # works around a local macOS certificate issue - local dev only
 ```
+
+`DATABASE_URL` is Supabase's **Transaction pooler** connection string (Supabase dashboard → **Connect**). Use a separate Supabase project for local development so you never test against production data. Tables are created automatically on startup.
 
 `SUPABASE_URL` and `SUPABASE_ANON_KEY` are required — the app verifies logged-in users' tokens against your Supabase project's JWKS endpoint. (`SUPABASE_JWT_SECRET`, if present from an older setup, isn't used by the app.)
 
@@ -108,6 +111,24 @@ python3 app.py
 ```
 
 The application will start running at `http://127.0.0.1:5001/` (or your configured port). Open this address in your web browser.
+
+---
+
+## 🚀 Deploying to Vercel
+
+Vercel auto-detects the Flask app in `app.py`; static files in `public/` are served from its CDN.
+
+1. Import the GitHub repo at vercel.com → **Add New → Project** (framework preset: Flask).
+2. Add environment variables: `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `GEMINI_API_KEY`.
+3. Deploy, then in Supabase → **Authentication → URL Configuration** set **Site URL** to the
+   deployed URL and add it to **Redirect URLs** (signup verification links use the Site URL).
+
+To copy an existing local `trackify.db` into Postgres once (keeps ids, refuses to run if the
+target already has user data):
+
+```bash
+.venv/bin/python scripts/migrate_sqlite_to_postgres.py
+```
 
 ---
 
@@ -184,12 +205,13 @@ scanners that prefetch links can't unsubscribe someone by accident.
 │   ├── ai.py               #   /api/ai/parse-transaction
 │   ├── settings.py         #   /api/settings, /api/settings/unsubscribe
 │   └── jobs.py              #   /api/jobs/weekly-emails
-├── database.py         # Database initialization and connection helpers
+├── database.py         # Postgres schema (init_db) and connection helpers
 ├── requirements.txt    # Pinned Python dependencies
-├── trackify.db         # SQLite Database (generated locally)
+├── scripts/
+│   └── migrate_sqlite_to_postgres.py  # One-time copy of an old trackify.db
 ├── .env                # Local secrets/keys (ignored by Git)
 ├── .gitignore          # File specifying ignored items in Git
-├── static/
+├── public/static/      # Served by Vercel's CDN (and Flask locally) at /static/
 │   ├── app.js          # Core frontend application logic
 │   └── style.css       # Premium responsive design system
 └── templates/
@@ -199,4 +221,4 @@ scanners that prefetch links can't unsubscribe someone by accident.
 ---
 
 ## 🔒 Security & Privacy Reminder
-Never commit or upload your `.env` file or local databases (`trackify.db`) to GitHub. These files are listed in `.gitignore` to keep your credentials and personal information private.
+Never commit or upload your `.env` file or any old local database (`trackify.db`) to GitHub. These files are listed in `.gitignore` to keep your credentials and personal information private.

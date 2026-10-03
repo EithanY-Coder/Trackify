@@ -10,7 +10,7 @@ bp = Blueprint('transactions', __name__)
 def get_transactions():
     conn = get_db()
     transactions = conn.execute(
-        'SELECT * FROM transactions WHERE user_id = ? ORDER BY date DESC, id DESC',
+        'SELECT * FROM transactions WHERE user_id = %s ORDER BY date DESC, id DESC',
         (g.user_id,)
     ).fetchall()
     return jsonify([dict(t) for t in transactions])
@@ -33,13 +33,14 @@ def add_transaction():
 
     cursor = conn.execute('''
         INSERT INTO transactions (user_id, type, amount, description, category_name, date, hours_worked, hourly_wage, tax_rate, gross_amount)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        RETURNING id
     ''', (
         g.user_id, parsed['type'], parsed['amount'], parsed['description'], canonical_name, parsed['date'],
         parsed['hours_worked'], parsed['hourly_wage'], parsed['tax_rate'], parsed['gross_amount']
     ))
+    new_id = cursor.fetchone()['id']
     conn.commit()
-    new_id = cursor.lastrowid
 
     return jsonify({
         'id': new_id,
@@ -59,11 +60,11 @@ def add_transaction():
 @require_auth
 def delete_transaction(t_id):
     conn = get_db()
-    exists = conn.execute('SELECT id FROM transactions WHERE id = ? AND user_id = ?', (t_id, g.user_id)).fetchone()
+    exists = conn.execute('SELECT id FROM transactions WHERE id = %s AND user_id = %s', (t_id, g.user_id)).fetchone()
     if not exists:
         return jsonify({'error': 'Transaction not found.'}), 404
 
-    conn.execute('DELETE FROM transactions WHERE id = ? AND user_id = ?', (t_id, g.user_id))
+    conn.execute('DELETE FROM transactions WHERE id = %s AND user_id = %s', (t_id, g.user_id))
     conn.commit()
     return jsonify({'success': True, 'message': 'Transaction deleted.'})
 
@@ -78,7 +79,7 @@ def update_transaction(t_id):
         return jsonify({'error': message}), status
 
     conn = get_db()
-    exists = conn.execute('SELECT id FROM transactions WHERE id = ? AND user_id = ?', (t_id, g.user_id)).fetchone()
+    exists = conn.execute('SELECT id FROM transactions WHERE id = %s AND user_id = %s', (t_id, g.user_id)).fetchone()
     if not exists:
         return jsonify({'error': 'Transaction not found.'}), 404
 
@@ -88,9 +89,9 @@ def update_transaction(t_id):
 
     conn.execute('''
         UPDATE transactions
-        SET type = ?, amount = ?, description = ?, category_name = ?, date = ?,
-            hours_worked = ?, hourly_wage = ?, tax_rate = ?, gross_amount = ?
-        WHERE id = ? AND user_id = ?
+        SET type = %s, amount = %s, description = %s, category_name = %s, date = %s,
+            hours_worked = %s, hourly_wage = %s, tax_rate = %s, gross_amount = %s
+        WHERE id = %s AND user_id = %s
     ''', (
         parsed['type'], parsed['amount'], parsed['description'], canonical_name, parsed['date'],
         parsed['hours_worked'], parsed['hourly_wage'], parsed['tax_rate'], parsed['gross_amount'],

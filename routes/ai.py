@@ -33,7 +33,7 @@ def parse_transaction_ai():
     conn = get_db()
     try:
         categories = conn.execute(
-            'SELECT name FROM categories WHERE user_id IS NULL OR user_id = ?',
+            'SELECT name FROM categories WHERE user_id IS NULL OR user_id = %s',
             (g.user_id,)
         ).fetchall()
         category_names = [c['name'] for c in categories]

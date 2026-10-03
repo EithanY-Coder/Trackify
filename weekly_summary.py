@@ -3,7 +3,7 @@
 
 Design notes:
 
-* Every function here takes an explicit sqlite3 connection instead of calling
+* Every function here takes an explicit database connection instead of calling
   helpers.get_db(). The send job runs from cron - outside any request - where
   flask.g does not exist, so a request-scoped connection would blow up.
 * Summary generation is kept separate from sending so it can be previewed and
@@ -78,7 +78,7 @@ def build_weekly_summary(conn, user_id, week_start, week_end):
             COALESCE(SUM(CASE WHEN type = 'income' THEN amount END), 0) AS total_income,
             COUNT(*) AS transaction_count
         FROM transactions
-        WHERE user_id = ? AND date BETWEEN ? AND ?
+        WHERE user_id = %s AND date BETWEEN %s AND %s
     ''', (user_id, start_str, end_str)).fetchone()
 
     total_spent = float(totals['total_spent'] or 0.0)
@@ -88,7 +88,7 @@ def build_weekly_summary(conn, user_id, week_start, week_end):
     category_rows = conn.execute('''
         SELECT category_name, SUM(amount) AS amount, COUNT(*) AS count
         FROM transactions
-        WHERE user_id = ? AND type = 'expense' AND date BETWEEN ? AND ?
+        WHERE user_id = %s AND type = 'expense' AND date BETWEEN %s AND %s
         GROUP BY category_name
         ORDER BY amount DESC
     ''', (user_id, start_str, end_str)).fetchall()
@@ -260,25 +260,25 @@ def _claim_send(conn, user_id, week_start_str):
     several workers run the job at once. A previously *failed* send is allowed
     to be re-claimed, up to MAX_SEND_ATTEMPTS.
     """
-    cursor = conn.execute('''
+    cursor = conn.execute(f'''
         INSERT INTO weekly_email_log (user_id, week_start, status, attempts)
-        VALUES (?, ?, 'sending', 1)
+        VALUES (%s, %s, 'sending', 1)
         ON CONFLICT(user_id, week_start) DO UPDATE SET
             status = 'sending',
             attempts = weekly_email_log.attempts + 1,
-            updated_at = CURRENT_TIMESTAMP
+            updated_at = {database.NOW_SQL}
         WHERE weekly_email_log.status = 'failed'
-          AND weekly_email_log.attempts < ?
+          AND weekly_email_log.attempts < %s
     ''', (user_id, week_start_str, MAX_SEND_ATTEMPTS))
     conn.commit()
     return cursor.rowcount > 0
 
 
 def _finish_send(conn, user_id, week_start_str, status, message_id=None, error=None):
-    conn.execute('''
+    conn.execute(f'''
         UPDATE weekly_email_log
-        SET status = ?, provider_message_id = ?, error = ?, updated_at = CURRENT_TIMESTAMP
-        WHERE user_id = ? AND week_start = ?
+        SET status = %s, provider_message_id = %s, error = %s, updated_at = {database.NOW_SQL}
+        WHERE user_id = %s AND week_start = %s
     ''', (status, message_id, (error or '')[:500] or None, user_id, week_start_str))
     conn.commit()
 

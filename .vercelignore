@@ -1,0 +1,14 @@
+# Keep local-only and secret files out of Vercel deployments.
+.env
+.env.*
+!.env.example
+.venv/
+__pycache__/
+*.db
+*.sqlite3
+graphify-out/
+.claude/
+.agents/
+.codex/
+.echo
+.DS_Store

@@ -10,7 +10,7 @@ bp = Blueprint('categories', __name__)
 def get_categories():
     conn = get_db()
     categories = conn.execute(
-        'SELECT * FROM categories WHERE user_id IS NULL OR user_id = ? ORDER BY name ASC',
+        'SELECT * FROM categories WHERE user_id IS NULL OR user_id = %s ORDER BY name ASC',
         (g.user_id,)
     ).fetchall()
     return jsonify([dict(c) for c in categories])
@@ -32,18 +32,18 @@ def add_category():
     conn = get_db()
     # Check if already exists for this user or globally
     exists = conn.execute(
-        'SELECT id FROM categories WHERE (user_id IS NULL OR user_id = ?) AND name = ?',
+        'SELECT id FROM categories WHERE (user_id IS NULL OR user_id = %s) AND name = %s',
         (g.user_id, name)
     ).fetchone()
     if exists:
         return jsonify({'error': f'Category "{name}" already exists.'}), 400
 
     cursor = conn.execute(
-        'INSERT INTO categories (name, icon, color, user_id) VALUES (?, ?, ?, ?)',
+        'INSERT INTO categories (name, icon, color, user_id) VALUES (%s, %s, %s, %s) RETURNING id',
         (name, icon, color, g.user_id)
     )
+    new_id = cursor.fetchone()['id']
     conn.commit()
-    new_id = cursor.lastrowid
     return jsonify({'id': new_id, 'name': name, 'icon': icon, 'color': color}), 201
 
 
@@ -61,7 +61,7 @@ def update_category(c_id):
         return jsonify({'error': f'Category name must be {MAX_CATEGORY_NAME_LEN} characters or fewer.'}), 400
 
     conn = get_db()
-    old_cat = conn.execute('SELECT user_id, name FROM categories WHERE id = ?', (c_id,)).fetchone()
+    old_cat = conn.execute('SELECT user_id, name FROM categories WHERE id = %s', (c_id,)).fetchone()
     if not old_cat:
         return jsonify({'error': 'Category not found.'}), 404
 
@@ -75,30 +75,26 @@ def update_category(c_id):
 
     if old_name != name:
         exists = conn.execute(
-            'SELECT id FROM categories WHERE (user_id IS NULL OR user_id = ?) AND name = ? AND id != ?',
+            'SELECT id FROM categories WHERE (user_id IS NULL OR user_id = %s) AND name = %s AND id != %s',
             (g.user_id, name, c_id)
         ).fetchone()
         if exists:
             return jsonify({'error': f'Category "{name}" already exists.'}), 400
 
-    conn.execute("PRAGMA foreign_keys = OFF;")
-    try:
+    conn.execute('''
+        UPDATE categories
+        SET name = %s, icon = %s, color = %s
+        WHERE id = %s AND user_id = %s
+    ''', (name, icon, color, c_id, g.user_id))
+
+    if old_name != name:
         conn.execute('''
-            UPDATE categories
-            SET name = ?, icon = ?, color = ?
-            WHERE id = ? AND user_id = ?
-        ''', (name, icon, color, c_id, g.user_id))
+            UPDATE transactions
+            SET category_name = %s
+            WHERE category_name = %s AND user_id = %s
+        ''', (name, old_name, g.user_id))
 
-        if old_name != name:
-            conn.execute('''
-                UPDATE transactions
-                SET category_name = ?
-                WHERE category_name = ? AND user_id = ?
-            ''', (name, old_name, g.user_id))
-
-        conn.commit()
-    finally:
-        conn.execute("PRAGMA foreign_keys = ON;")
+    conn.commit()
 
     return jsonify({'id': c_id, 'name': name, 'icon': icon, 'color': color})
 
@@ -107,7 +103,7 @@ def update_category(c_id):
 @require_auth
 def delete_category(c_id):
     conn = get_db()
-    cat = conn.execute('SELECT user_id, name FROM categories WHERE id = ?', (c_id,)).fetchone()
+    cat = conn.execute('SELECT user_id, name FROM categories WHERE id = %s', (c_id,)).fetchone()
     if not cat:
         return jsonify({'error': 'Category not found.'}), 404
 
@@ -121,22 +117,18 @@ def delete_category(c_id):
     if cat_name == 'Miscellaneous':
         return jsonify({'error': 'The "Miscellaneous" category cannot be deleted.'}), 400
 
-    misc_exists = conn.execute('SELECT id FROM categories WHERE name = "Miscellaneous" AND user_id IS NULL').fetchone()
+    misc_exists = conn.execute('SELECT id FROM categories WHERE name = \'Miscellaneous\' AND user_id IS NULL').fetchone()
     if not misc_exists:
         # Recreate global miscellaneous if needed
-        conn.execute('INSERT INTO categories (name, icon, color, user_id) VALUES ("Miscellaneous", "📦", "#ADB5BD", NULL)')
+        conn.execute("INSERT INTO categories (name, icon, color, user_id) VALUES ('Miscellaneous', '📦', '#ADB5BD', NULL)")
 
-    conn.execute("PRAGMA foreign_keys = OFF;")
-    try:
-        conn.execute('''
-            UPDATE transactions
-            SET category_name = "Miscellaneous"
-            WHERE category_name = ? AND user_id = ?
-        ''', (cat_name, g.user_id))
+    conn.execute('''
+        UPDATE transactions
+        SET category_name = 'Miscellaneous'
+        WHERE category_name = %s AND user_id = %s
+    ''', (cat_name, g.user_id))
 
-        conn.execute('DELETE FROM categories WHERE id = ? AND user_id = ?', (c_id, g.user_id))
-        conn.commit()
-    finally:
-        conn.execute("PRAGMA foreign_keys = ON;")
+    conn.execute('DELETE FROM categories WHERE id = %s AND user_id = %s', (c_id, g.user_id))
+    conn.commit()
 
     return jsonify({'success': True, 'message': f'Category "{cat_name}" deleted. Transactions reassigned to Miscellaneous.'})
