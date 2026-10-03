@@ -25,6 +25,8 @@ Flask + SQLite backend, single-page vanilla JS frontend, Supabase for auth only.
 
 **Schema/migrations** live entirely in `database.init_db()`, which runs on every app start. It uses `CREATE TABLE/INDEX IF NOT EXISTS` plus `PRAGMA table_info` checks for `ALTER TABLE ADD COLUMN`. Add schema changes there in the same idempotent style. Notable details: categories with `user_id IS NULL` are global defaults seeded on first run; transactions reference categories by `category_name` (not FK); dates are `YYYY-MM-DD` strings, so range filters use string `BETWEEN`/`LIKE`.
 
+**Onboarding/profile.** `user_profiles` (first/last name, `life_stage` in `helpers.LIFE_STAGES`, free-text `savings_goal`) is served by `routes/profile.py` (`GET`/`PUT /api/profile`, validated by `helpers.parse_profile_payload`). In `app.js`, `loadProfileAndOnboard()` runs after login. It opens the required welcome popup only when there is no profile and the Supabase `user.created_at` is on or after `ONBOARDING_CUTOFF`, so pre-existing accounts never see it. The profile drives the "Hi [name]" greetings (dashboard, sidebar, advisor) and the Settings "Your profile" card, and `get_user_financial_profile()` appends it to the advisor prompt.
+
 **AI features** (Gemini, `GEMINI_API_KEY`):
 - `routes/ai.py`: natural-language → transaction JSON via raw `requests` to the Gemini REST API.
 - `routes/advisor.py`: multi-session chat via the `google-genai` SDK. Each turn injects `get_user_financial_profile()` into the system prompt, sends the last 15 messages of the session, strips markdown from the reply, persists both messages to `chat_messages`, and auto-titles a session still named "New Chat" from the first message.

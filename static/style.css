@@ -3775,3 +3775,412 @@ body.advisor-tab-active .advisor-floating-trigger {
 
 
 
+
+/* ==========================================================================
+   ONBOARDING (first-login welcome popup + Settings profile card)
+   ========================================================================== */
+body.onboarding-active {
+    overflow: hidden;
+}
+
+/* Light, airy veil instead of the dark one the edit modals use: the real
+   dashboard stays visible behind a frosted blur. Scrolls itself (card uses
+   margin:auto) so short viewports can still reach the submit button
+   without clipping the life-stage dropdown. */
+.onboarding-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1500;
+    display: flex;
+    padding: 24px 16px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    background-color: rgba(248, 249, 250, 0.45);
+    -webkit-backdrop-filter: blur(16px) saturate(140%);
+    backdrop-filter: blur(16px) saturate(140%);
+    /* The whole layer, blur included, fades in from transparent rather than
+       popping on. Fading opacity is smoother than animating the blur
+       radius itself. */
+    opacity: 0;
+    transition: opacity 0.7s ease;
+}
+
+.onboarding-overlay.open {
+    opacity: 1;
+}
+
+.onboarding-overlay.is-closing {
+    transition-duration: 0.5s;
+}
+
+.onboarding-card {
+    position: relative;
+    width: 100%;
+    max-width: 480px;
+    margin: auto;
+    background-color: #FFFFFF;
+    border: 1px solid rgba(229, 231, 235, 0.8);
+    border-radius: 18px;
+    padding: 2.5rem 2.25rem 2rem;
+    box-shadow:
+        0 1px 2px rgba(17, 24, 39, 0.04),
+        0 12px 32px -8px rgba(17, 24, 39, 0.14),
+        0 40px 80px -24px rgba(17, 24, 39, 0.18);
+    opacity: 0;
+    transform: translateY(16px) scale(0.98);
+    transition: opacity 0.8s ease 0.15s, transform 0.9s cubic-bezier(0.22, 1, 0.36, 1) 0.15s;
+}
+
+.onboarding-overlay.open .onboarding-card {
+    opacity: 1;
+    transform: none;
+}
+
+.onboarding-overlay.is-closing .onboarding-card {
+    opacity: 0;
+    transform: scale(0.97);
+    transition: opacity 0.35s ease, transform 0.45s ease;
+}
+
+.onboarding-step {
+    transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.onboarding-step.is-leaving {
+    opacity: 0;
+    transform: translateY(-8px);
+}
+
+/* Header + each field cascade in after the card lands. --i is set per
+   element in initOnboarding(). */
+.onboarding-reveal {
+    opacity: 0;
+}
+
+.onboarding-overlay.open .onboarding-reveal {
+    animation: onboardingReveal 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    animation-delay: calc(var(--i, 0) * 60ms + 350ms);
+}
+
+@keyframes onboardingReveal {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: none; }
+}
+
+.onboarding-logo {
+    display: block;
+    height: 44px;
+    width: auto;
+    margin: 0 auto 1.1rem;
+}
+
+.onboarding-overlay.open .onboarding-logo {
+    animation-name: onboardingLogoIn;
+    animation-duration: 0.7s;
+}
+
+@keyframes onboardingLogoIn {
+    0%   { opacity: 0; transform: scale(0.7) rotate(-8deg); }
+    60%  { opacity: 1; transform: scale(1.06) rotate(1deg); }
+    100% { opacity: 1; transform: none; }
+}
+
+.onboarding-title {
+    font-size: 1.75rem;
+    font-weight: 700;
+    letter-spacing: -0.6px;
+    line-height: 1.2;
+    text-align: center;
+    color: var(--text-primary);
+}
+
+.onboarding-subtitle {
+    margin: 0.5rem auto 1.75rem;
+    max-width: 36ch;
+    text-align: center;
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+}
+
+/* ---- Shared profile form pieces (popup + Settings card) ---- */
+.label-hint {
+    text-transform: none;
+    letter-spacing: 0;
+    font-weight: 500;
+    color: var(--text-muted);
+}
+
+.profile-form .form-group {
+    margin-bottom: 1.1rem;
+}
+
+.profile-goal-input {
+    width: 100%;
+    min-height: 92px;
+    resize: vertical;
+    background-color: #FFFFFF;
+    border: 1px solid var(--card-border);
+    border-radius: var(--border-radius-md);
+    padding: 0.85rem 1rem;
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 0.95rem;
+    line-height: 1.5;
+    outline: none;
+    transition: var(--transition-smooth);
+}
+
+.profile-goal-input::placeholder,
+.profile-form input::placeholder {
+    color: var(--text-muted);
+}
+
+.profile-goal-input:focus {
+    border-color: var(--card-border-focus);
+    box-shadow: 0 0 0 2px rgba(17, 24, 39, 0.05);
+}
+
+.profile-goal-count {
+    align-self: flex-end;
+    margin-top: -0.2rem;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    transition: color 0.2s ease;
+}
+
+.profile-goal-count.near-limit {
+    color: var(--color-amber);
+}
+
+.profile-form-error {
+    margin: -0.25rem 0 0.9rem;
+    color: var(--color-rose);
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+.onboarding-submit,
+.profile-save-btn {
+    background-color: var(--color-indigo);
+    color: #FFFFFF;
+}
+
+.onboarding-submit {
+    margin-top: 0.4rem;
+}
+
+.onboarding-submit:hover:not(:disabled),
+.profile-save-btn:hover:not(:disabled) {
+    box-shadow: 0 10px 22px -8px rgba(17, 24, 39, 0.45);
+}
+
+.onboarding-submit:disabled,
+.profile-save-btn:disabled {
+    opacity: 0.7;
+    cursor: wait;
+    transform: none;
+}
+
+.profile-save-btn {
+    width: auto;
+    margin-left: auto;
+    padding: 0.8rem 1.6rem;
+    font-size: 0.95rem;
+}
+
+.profile-settings-card .profile-form {
+    margin-top: 1.25rem;
+    display: flex;
+    flex-direction: column;
+}
+
+/* ---- Life-stage dropdown (look matches the dashboard "Showing" picker) ---- */
+.life-stage-select {
+    position: relative;
+}
+
+/* The reveal animation gives every field group its own stacking context,
+   so the open list would paint under the next field without this. */
+.form-group:has(.life-stage-select) {
+    position: relative;
+    z-index: 5;
+}
+
+.life-stage-trigger {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.85rem 1rem;
+    background-color: #FFFFFF;
+    border: 1px solid var(--card-border);
+    border-radius: var(--border-radius-md);
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 0.95rem;
+    text-align: left;
+    cursor: pointer;
+    outline: none;
+    transition: var(--transition-smooth);
+}
+
+.life-stage-trigger:hover {
+    border-color: var(--card-border-focus);
+}
+
+.life-stage-trigger:focus-visible,
+.life-stage-trigger.open {
+    border-color: var(--card-border-focus);
+    box-shadow: 0 0 0 2px rgba(17, 24, 39, 0.05);
+}
+
+.life-stage-value.is-placeholder {
+    color: var(--text-muted);
+}
+
+.life-stage-chevron {
+    color: var(--text-muted);
+    flex-shrink: 0;
+    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.life-stage-trigger.open .life-stage-chevron {
+    transform: rotate(180deg);
+}
+
+.life-stage-options {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    right: 0;
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 0.4rem;
+    background-color: var(--bg-sidebar);
+    border: 1px solid var(--card-border);
+    border-radius: var(--border-radius-md);
+    box-shadow: 0 12px 28px -6px rgba(17, 24, 39, 0.18), 0 2px 6px rgba(17, 24, 39, 0.06);
+    animation: dropdownFade 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.life-stage-option {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.65rem 0.8rem;
+    border-radius: var(--border-radius-sm);
+    font-size: 0.92rem;
+    font-weight: 500;
+    color: var(--text-primary);
+    cursor: pointer;
+    outline: none;
+    transition: var(--transition-smooth);
+}
+
+.life-stage-option:hover,
+.life-stage-option:focus-visible {
+    background-color: rgba(17, 24, 39, 0.05);
+    transform: translateX(2px);
+}
+
+.life-stage-option.active {
+    background-color: var(--indigo-glow);
+    font-weight: 700;
+}
+
+.life-stage-option.active::after {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background-color: var(--color-indigo);
+    flex-shrink: 0;
+}
+
+/* ---- Success state ---- */
+.onboarding-success {
+    padding: 1.5rem 0 0.75rem;
+    text-align: center;
+}
+
+.onboarding-check {
+    display: block;
+    margin: 0 auto 1.25rem;
+}
+
+.onboarding-check-ring {
+    stroke: var(--color-emerald);
+    stroke-dasharray: 183;
+    stroke-dashoffset: 183;
+    animation: onboardingDraw 0.6s cubic-bezier(0.65, 0, 0.35, 1) forwards;
+}
+
+.onboarding-check-mark {
+    stroke: var(--color-emerald);
+    stroke-dasharray: 40;
+    stroke-dashoffset: 40;
+    animation: onboardingDraw 0.35s cubic-bezier(0.65, 0, 0.35, 1) 0.5s forwards;
+}
+
+@keyframes onboardingDraw {
+    to { stroke-dashoffset: 0; }
+}
+
+.onboarding-success .onboarding-title,
+.onboarding-success .onboarding-subtitle {
+    opacity: 0;
+    animation: onboardingReveal 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.onboarding-success .onboarding-title { animation-delay: 0.55s; }
+.onboarding-success .onboarding-subtitle { animation-delay: 0.65s; margin-bottom: 0.5rem; }
+
+@media (max-width: 520px) {
+    .onboarding-card {
+        padding: 2rem 1.25rem 1.5rem;
+        border-radius: 16px;
+    }
+
+    .onboarding-title {
+        font-size: 1.5rem;
+    }
+
+    .onboarding-card .form-row,
+    .profile-settings-card .form-row {
+        flex-direction: column;
+        gap: 0;
+    }
+
+    .profile-save-btn {
+        width: 100%;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .onboarding-overlay,
+    .onboarding-card,
+    .onboarding-step {
+        transition: opacity 0.2s ease;
+    }
+
+    .onboarding-card,
+    .onboarding-overlay.is-closing .onboarding-card {
+        transform: none;
+    }
+
+    .onboarding-reveal,
+    .onboarding-success .onboarding-title,
+    .onboarding-success .onboarding-subtitle {
+        opacity: 1;
+        animation: none !important;
+    }
+
+    .onboarding-check-ring,
+    .onboarding-check-mark {
+        stroke-dashoffset: 0;
+        animation: none;
+    }
+}

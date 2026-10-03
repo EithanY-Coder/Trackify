@@ -5,6 +5,7 @@ from .advisor import bp as advisor_bp
 from .ai import bp as ai_bp
 from .settings import bp as settings_bp
 from .jobs import bp as jobs_bp
+from .profile import bp as profile_bp
 
 
 def register_blueprints(app):
@@ -15,3 +16,4 @@ def register_blueprints(app):
     app.register_blueprint(ai_bp)
     app.register_blueprint(settings_bp)
     app.register_blueprint(jobs_bp)
+    app.register_blueprint(profile_bp)

@@ -63,6 +63,20 @@ def init_db():
     ''')
     cursor.execute('CREATE INDEX IF NOT EXISTS idx_user_settings_user_id ON user_settings(user_id);')
 
+    # Create user profiles table, filled in by the first-login welcome popup
+    # (and editable from Settings). Fed into the AI Advisor's system prompt.
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS user_profiles (
+            user_id TEXT PRIMARY KEY,
+            first_name TEXT NOT NULL,
+            last_name TEXT NOT NULL,
+            life_stage TEXT NOT NULL, -- 'student', 'adult' or 'retired'
+            savings_goal TEXT NOT NULL,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+
     # Create weekly email send log. The UNIQUE(user_id, week_start) pair is the
     # duplicate guard: the job "claims" a row before sending, so two overlapping
     # runs (cron firing twice, multiple gunicorn workers) can never both send the
