@@ -10,19 +10,108 @@
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Main Stylesheet -->
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <link rel="icon" type="image/png" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💸</text></svg>">
+    <link rel="icon" type="image/png" sizes="512x512" href="{{ url_for('static', filename='favicon.png') }}">
     <!-- Supabase JS Client -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
+    <!-- COVER CONTAINER (Marketing page shown before login, logged-out visitors only) -->
+    <div id="cover-container" class="cover-container">
+        <nav class="cover-nav">
+            <div class="cover-nav-logo">
+                <img src="{{ url_for('static', filename='trackify-logo.png') }}" height="30" alt="Trackify" class="brand-icon">
+                <span>rackify</span>
+            </div>
+            <button type="button" class="cover-nav-about" id="btn-cover-about">About</button>
+        </nav>
+
+        <section class="cover-hero">
+            <svg class="cover-market-bg" viewBox="0 0 1200 400" preserveAspectRatio="none" aria-hidden="true">
+                <g class="candle candle-up" style="animation-delay:0s"><line class="candle-wick" x1="27" y1="240" x2="27" y2="335"/><rect x="20" y="260" width="14" height="60"/></g>
+                <g class="candle candle-down" style="animation-delay:.2s"><line class="candle-wick" x1="85" y1="215" x2="85" y2="295"/><rect x="78" y="235" width="14" height="45"/></g>
+                <g class="candle candle-up" style="animation-delay:.4s"><line class="candle-wick" x1="143" y1="250" x2="143" y2="370"/><rect x="136" y="270" width="14" height="80"/></g>
+                <g class="candle candle-down" style="animation-delay:.6s"><line class="candle-wick" x1="201" y1="225" x2="201" y2="300"/><rect x="194" y="245" width="14" height="40"/></g>
+                <g class="candle candle-up" style="animation-delay:.8s"><line class="candle-wick" x1="259" y1="190" x2="259" y2="290"/><rect x="252" y="210" width="14" height="65"/></g>
+                <g class="candle candle-up" style="animation-delay:1s"><line class="candle-wick" x1="317" y1="210" x2="317" y2="295"/><rect x="310" y="230" width="14" height="50"/></g>
+                <g class="candle candle-down" style="animation-delay:1.2s"><line class="candle-wick" x1="375" y1="180" x2="375" y2="270"/><rect x="368" y="200" width="14" height="55"/></g>
+                <g class="candle candle-up" style="animation-delay:1.4s"><line class="candle-wick" x1="433" y1="145" x2="433" y2="250"/><rect x="426" y="165" width="14" height="70"/></g>
+                <g class="candle candle-up" style="animation-delay:1.6s"><line class="candle-wick" x1="491" y1="170" x2="491" y2="250"/><rect x="484" y="190" width="14" height="45"/></g>
+                <g class="candle candle-down" style="animation-delay:1.8s"><line class="candle-wick" x1="549" y1="155" x2="549" y2="250"/><rect x="542" y="175" width="14" height="60"/></g>
+                <g class="candle candle-up" style="animation-delay:2s"><line class="candle-wick" x1="607" y1="120" x2="607" y2="220"/><rect x="600" y="140" width="14" height="65"/></g>
+                <g class="candle candle-up" style="animation-delay:2.2s"><line class="candle-wick" x1="665" y1="135" x2="665" y2="215"/><rect x="658" y="155" width="14" height="45"/></g>
+                <g class="candle candle-down" style="animation-delay:2.4s"><line class="candle-wick" x1="723" y1="110" x2="723" y2="200"/><rect x="716" y="130" width="14" height="55"/></g>
+                <g class="candle candle-up" style="animation-delay:2.6s"><line class="candle-wick" x1="781" y1="80" x2="781" y2="185"/><rect x="774" y="100" width="14" height="70"/></g>
+                <g class="candle candle-up" style="animation-delay:2.8s"><line class="candle-wick" x1="839" y1="95" x2="839" y2="180"/><rect x="832" y="115" width="14" height="50"/></g>
+                <g class="candle candle-down" style="animation-delay:3s"><line class="candle-wick" x1="897" y1="75" x2="897" y2="170"/><rect x="890" y="95" width="14" height="60"/></g>
+                <g class="candle candle-up" style="animation-delay:3.2s"><line class="candle-wick" x1="955" y1="50" x2="955" y2="150"/><rect x="948" y="70" width="14" height="65"/></g>
+                <g class="candle candle-up" style="animation-delay:3.4s"><line class="candle-wick" x1="1013" y1="60" x2="1013" y2="140"/><rect x="1006" y="80" width="14" height="45"/></g>
+                <g class="candle candle-down" style="animation-delay:3.6s"><line class="candle-wick" x1="1071" y1="40" x2="1071" y2="130"/><rect x="1064" y="60" width="14" height="55"/></g>
+                <g class="candle candle-up" style="animation-delay:3.8s"><line class="candle-wick" x1="1129" y1="15" x2="1129" y2="120"/><rect x="1122" y="35" width="14" height="70"/></g>
+                <polyline class="market-trendline" points="27,290 85,257 143,310 201,265 259,242 317,255 375,227 433,200 491,212 549,205 607,172 665,177 723,157 781,135 839,140 897,125 955,102 1013,102 1071,87 1129,70"/>
+            </svg>
+            <img src="{{ url_for('static', filename='trackify-logo.png') }}" alt="" class="cover-logo-watermark" aria-hidden="true">
+            <div class="cover-hero-inner">
+                <h1 class="cover-headline" id="cover-headline">Know exactly where your money goes.</h1>
+                <p class="cover-subtext cover-fade-item">Log income and spending in seconds, then watch your dashboard show the pattern behind the numbers, so budgeting stops being guesswork.</p>
+                <div class="cover-cta-group cover-fade-item">
+                    <button type="button" class="cover-cta-primary" id="btn-cover-cta">Get started</button>
+                </div>
+            </div>
+        </section>
+
+        <section class="cover-about" id="cover-about">
+            <div class="cover-about-intro">
+                <div class="cover-about-text">
+                    <span class="cover-eyebrow">What Trackify does</span>
+                    <h2 class="cover-about-headline">A budget tracker that shows its work.</h2>
+                    <p class="cover-about-body">Log an expense or a paycheck in one line, tag it by category, and the dashboard updates right away. No spreadsheets, no monthly reconciliation, no guessing where the money went.</p>
+                </div>
+                <img src="{{ url_for('static', filename='trackify-logo.png') }}" alt="Trackify" class="cover-about-logo">
+            </div>
+
+            <div class="cover-about-inner">
+                <div class="cover-feature-row reveal-group">
+                    <div class="cover-feature reveal-item">
+                        <svg class="cover-feature-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8z"/></svg>
+                        <h3>Log it in seconds</h3>
+                        <p>Type a plain-language line like "spent 12 on lunch," or use a quick form. Categories and dates fill themselves in.</p>
+                    </div>
+                    <div class="cover-feature reveal-item">
+                        <svg class="cover-feature-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20V10M10 20V4M17 20v-7"/></svg>
+                        <h3>See the pattern</h3>
+                        <p>Dashboard charts break spending down by category and by week, updated the moment you log something new.</p>
+                    </div>
+                </div>
+                <div class="cover-feature-row reveal-group">
+                    <div class="cover-feature reveal-item">
+                        <svg class="cover-feature-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 20l1-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+                        <h3>Ask a straight question</h3>
+                        <p>The built-in advisor answers plain questions about your budget with plain answers, no jargon.</p>
+                    </div>
+                    <div class="cover-feature reveal-item">
+                        <svg class="cover-feature-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
+                        <h3>Stay on top weekly</h3>
+                        <p>An optional weekly recap lands in your inbox summarizing what changed since last time.</p>
+                    </div>
+                </div>
+
+                <button type="button" class="cover-cta-secondary" id="btn-cover-about-cta">
+                    Create your account
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="cover-cta-secondary-arrow"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+                </button>
+            </div>
+        </section>
+    </div>
+
     <!-- AUTH CONTAINER (Login & Register) -->
-    <div id="auth-container" class="auth-container">
+    <div id="auth-container" class="auth-container hidden">
+        <button type="button" class="auth-back-btn" id="btn-auth-back" aria-label="Back to home">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+            Back
+        </button>
         <div class="auth-card glass">
             <div class="brand-auth">
-                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="brand-icon">
-                    <path d="M3 3v18h18"/>
-                    <path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"/>
-                </svg>
+                <img src="{{ url_for('static', filename='trackify-logo.png') }}" height="42" alt="Trackify" class="brand-icon">
                 <h1>Trackify</h1>
             </div>
             <h2 id="auth-title">Log in to your account</h2>
@@ -65,10 +154,7 @@
         <!-- Sidebar Navigation -->
         <aside class="sidebar">
             <div class="brand">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="brand-icon">
-                    <path d="M3 3v18h18"/>
-                    <path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"/>
-                </svg>
+                <img src="{{ url_for('static', filename='trackify-logo.png') }}" height="30" alt="Trackify" class="brand-icon">
                 <h1>Trackify</h1>
             </div>
             
@@ -150,10 +236,7 @@
             <!-- Top Mobile Bar -->
             <header class="mobile-header">
                 <div class="brand">
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="brand-icon">
-                        <path d="M3 3v18h18"/>
-                        <path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"/>
-                    </svg>
+                    <img src="{{ url_for('static', filename='trackify-logo.png') }}" height="30" alt="Trackify" class="brand-icon">
                     <h1>Trackify</h1>
                 </div>
                 <div class="menu-toggle" id="mobile-menu-toggle">☰</div>
@@ -162,8 +245,27 @@
             <!-- TAB 1: Dashboard -->
             <section id="dashboard" class="tab-content active">
                 <div class="content-header">
-                    <h2>Financial Overview</h2>
+                    <h2 id="dashboard-greeting">Financial Overview</h2>
                     <p class="subtitle">Here's how your budget is looking</p>
+                </div>
+
+                <div class="dashboard-range-row">
+                    <span class="dashboard-range-label">Showing</span>
+                    <div class="dashboard-range-select" id="dashboard-range-select">
+                        <button type="button" class="dashboard-range-trigger" id="dashboard-range-trigger">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="dashboard-range-trigger-icon"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
+                            <span class="dashboard-range-trigger-text">All time</span>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="dashboard-range-chevron"><path d="M6 9l6 6 6-6"/></svg>
+                        </button>
+                        <div class="dashboard-range-options hidden" id="dashboard-range-options">
+                            <button type="button" class="dashboard-range-option active" data-value="all">All time</button>
+                            <button type="button" class="dashboard-range-option" data-value="week">Past week</button>
+                            <button type="button" class="dashboard-range-option" data-value="month">Past month</button>
+                            <button type="button" class="dashboard-range-option" data-value="6months">Past 6 months</button>
+                            <button type="button" class="dashboard-range-option" data-value="ytd">Year to date</button>
+                            <button type="button" class="dashboard-range-option" data-value="year">Past year</button>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Stats Grid -->
@@ -657,6 +759,35 @@
                     <p class="subtitle">Control your account and reminder preferences</p>
                 </div>
 
+                <div class="card glass profile-settings-card" style="max-width: 720px; margin: 0 auto 1.5rem;">
+                    <h3>Your profile</h3>
+                    <p class="card-desc">Your AI Advisor uses this to tailor its saving advice to you.</p>
+
+                    <form id="profile-settings-form" class="profile-form" novalidate>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="profile-first-name">First name</label>
+                                <input type="text" id="profile-first-name" maxlength="50" autocomplete="given-name" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="profile-last-name">Last name</label>
+                                <input type="text" id="profile-last-name" maxlength="50" autocomplete="family-name" required>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label id="profile-stage-label">I am</label>
+                            <div class="life-stage-select" id="profile-stage-select" data-labelledby="profile-stage-label"></div>
+                        </div>
+                        <div class="form-group">
+                            <label for="profile-goal">Help me get to know you <span class="label-hint">(saving goals, finances, spending habits, etc.)</span></label>
+                            <textarea id="profile-goal" class="profile-goal-input" maxlength="500" rows="3" placeholder="e.g. I'm saving up for a car, I work part-time, and I spend too much on takeout" required></textarea>
+                            <span class="profile-goal-count" id="profile-goal-count">0/500</span>
+                        </div>
+                        <p class="profile-form-error hidden" id="profile-settings-error" role="alert"></p>
+                        <button type="submit" class="submit-btn profile-save-btn" id="btn-profile-save">Save profile</button>
+                    </form>
+                </div>
+
                 <div class="card glass" style="max-width: 720px; margin: 0 auto;">
                     <h3>Email reminders</h3>
                     <p class="card-desc">Turn weekly spending recap emails on or off at any time.</p>
@@ -681,14 +812,14 @@
                     <!-- Sessions Sidebar -->
                     <div class="advisor-sessions-sidebar" id="advisor-sessions-sidebar">
                         <div class="advisor-sessions-header">
-                            <span class="advisor-sessions-label">Conversations</span>
                             <button class="advisor-new-chat-btn" id="btn-new-chat" title="Start a new conversation">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                                     <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
                                 </svg>
-                                New Chat
+                                New chat
                             </button>
                         </div>
+                        <span class="advisor-sessions-label">Conversations</span>
                         <div class="advisor-sessions-list" id="advisor-sessions-list">
                             <!-- Sessions rendered by JS -->
                         </div>
@@ -706,7 +837,7 @@
                                 </div>
                                 <div>
                                     <h2 id="advisor-fs-session-title">AI Financial Advisor</h2>
-                                    <p>Powered by Gemini &mdash; your personal money coach</p>
+                                    <p>Powered by Gemini. Your personal money coach.</p>
                                 </div>
                             </div>
                             <button class="advisor-fs-clear-btn" id="btn-fs-clear-chat" title="Clear this conversation">
@@ -723,11 +854,9 @@
                         <!-- Chat messages area -->
                         <div class="advisor-fs-chat" id="advisor-fs-chat-area">
                             <div class="advisor-fs-welcome">
-                                <div class="advisor-fs-avatar">🤖</div>
-                                <div class="advisor-fs-welcome-text">
-                                    <h3>Hi there! I'm your Trackify Financial Coach.</h3>
-                                    <p>I can see your real-time spending and budget categories. Ask me anything &mdash; from cutting costs to hitting your targets faster.</p>
-                                </div>
+                                <span class="advisor-fs-eyebrow">AI Advisor</span>
+                                <h3>Hi, I'm your Trackify financial coach.</h3>
+                                <p>I can see your real spending and budget categories. Ask me anything, from cutting costs to hitting your targets faster.</p>
                             </div>
                         </div>
 
@@ -933,7 +1062,7 @@
     </div>
 
     <!-- Floating Advisor Trigger -->
-    <button class="advisor-floating-trigger" id="btn-advisor-float" aria-label="Open AI Advisor">
+    <button class="advisor-floating-trigger hidden" id="btn-advisor-float" aria-label="Open AI Advisor">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
         </svg>
@@ -998,6 +1127,51 @@
 
     <!-- Backdrop overlay for drawer -->
     <div class="drawer-backdrop" id="advisor-drawer-backdrop"></div>
+
+    <!-- First-login welcome / onboarding popup. Required: no close button,
+         Escape and backdrop clicks are ignored (see initOnboarding in app.js). -->
+    <div id="onboarding-modal" class="onboarding-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="onboarding-title">
+        <div class="onboarding-card">
+            <div class="onboarding-step" id="onboarding-form-step">
+                <img src="{{ url_for('static', filename='trackify-logo.png') }}" alt="" class="onboarding-logo onboarding-reveal">
+                <h2 id="onboarding-title" class="onboarding-title onboarding-reveal">Welcome to Trackify</h2>
+                <p class="onboarding-subtitle onboarding-reveal">Tell us a little about yourself so your AI Advisor can give advice that actually fits you.</p>
+
+                <form id="onboarding-form" class="profile-form" novalidate>
+                    <div class="form-row onboarding-reveal">
+                        <div class="form-group">
+                            <label for="onboarding-first-name">First name</label>
+                            <input type="text" id="onboarding-first-name" maxlength="50" autocomplete="given-name" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="onboarding-last-name">Last name</label>
+                            <input type="text" id="onboarding-last-name" maxlength="50" autocomplete="family-name" required>
+                        </div>
+                    </div>
+                    <div class="form-group onboarding-reveal">
+                        <label id="onboarding-stage-label">I am</label>
+                        <div class="life-stage-select" id="onboarding-stage-select" data-labelledby="onboarding-stage-label"></div>
+                    </div>
+                    <div class="form-group onboarding-reveal">
+                        <label for="onboarding-goal">Help me get to know you <span class="label-hint">(saving goals, finances, spending habits, etc.)</span></label>
+                        <textarea id="onboarding-goal" class="profile-goal-input" maxlength="500" rows="3" placeholder="e.g. I'm saving up for a car, I work part-time, and I spend too much on takeout" required></textarea>
+                        <span class="profile-goal-count" id="onboarding-goal-count">0/500</span>
+                    </div>
+                    <p class="profile-form-error hidden" id="onboarding-error" role="alert"></p>
+                    <button type="submit" class="submit-btn onboarding-submit onboarding-reveal" id="btn-onboarding-submit">Get started</button>
+                </form>
+            </div>
+
+            <div class="onboarding-step onboarding-success hidden" id="onboarding-success-step" aria-live="polite">
+                <svg class="onboarding-check" width="64" height="64" viewBox="0 0 64 64" aria-hidden="true">
+                    <circle class="onboarding-check-ring" cx="32" cy="32" r="29" fill="none" stroke-width="2.5"/>
+                    <path class="onboarding-check-mark" d="M20 33l8.5 8.5L45 25" fill="none" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <h2 class="onboarding-title" id="onboarding-success-title">You're all set</h2>
+                <p class="onboarding-subtitle">Your dashboard and AI Advisor are now personalized for you.</p>
+            </div>
+        </div>
+    </div>
 
     <!-- Notification Toast -->
     <div id="toast-container" class="toast-container"></div>

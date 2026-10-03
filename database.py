@@ -11,8 +11,8 @@ NOW_SQL = "to_char(now() AT TIME ZONE 'utc', 'YYYY-MM-DD HH24:MI:SS')"
 # Arbitrary constant key for the advisory lock that serializes init_db().
 _INIT_LOCK_KEY = 74_825_301
 
-TABLES = ('categories', 'transactions', 'user_settings', 'weekly_email_log',
-          'chat_sessions', 'chat_messages')
+TABLES = ('categories', 'transactions', 'user_settings', 'user_profiles',
+          'weekly_email_log', 'chat_sessions', 'chat_messages')
 
 
 def get_db_connection():
@@ -83,6 +83,20 @@ def init_db():
                 user_id TEXT PRIMARY KEY,
                 weekly_email_enabled INTEGER NOT NULL DEFAULT 1,
                 weekly_email_timezone TEXT NOT NULL DEFAULT 'UTC',
+                created_at TEXT DEFAULT ({NOW_SQL}),
+                updated_at TEXT DEFAULT ({NOW_SQL})
+            )
+        ''')
+
+        # Create user profiles table, filled in by the first-login welcome popup
+        # (and editable from Settings). Fed into the AI Advisor's system prompt.
+        conn.execute(f'''
+            CREATE TABLE IF NOT EXISTS user_profiles (
+                user_id TEXT PRIMARY KEY,
+                first_name TEXT NOT NULL,
+                last_name TEXT NOT NULL,
+                life_stage TEXT NOT NULL, -- 'student', 'adult' or 'retired'
+                savings_goal TEXT NOT NULL,
                 created_at TEXT DEFAULT ({NOW_SQL}),
                 updated_at TEXT DEFAULT ({NOW_SQL})
             )

@@ -7,13 +7,16 @@ const state = {
     categories: [],
     activeTab: 'dashboard',
     chartFilter: 'all', // 'all', 'month', 'week'
+    dashboardRange: 'all', // 'all', 'week', 'month', '6months', 'ytd', 'year'
     currentUser: null,
+    profile: null, // onboarding profile from /api/profile, or null
     authMode: 'login' // 'login' or 'register'
 };
 
 // DOM Elements
 const elements = {
     // Auth Containers
+    coverContainer: document.getElementById('cover-container'),
     authContainer: document.getElementById('auth-container'),
     appContainer: document.getElementById('app-container'),
     weeklyEmailToggle: document.getElementById('weekly-email-toggle'),
@@ -39,6 +42,9 @@ const elements = {
     dashboardTotalIncome: document.getElementById('dashboard-total-income'),
     dashboardTotalExpenses: document.getElementById('dashboard-total-expenses'),
     dashboardNetSavings: document.getElementById('dashboard-net-savings'),
+    dashboardRangeTrigger: document.getElementById('dashboard-range-trigger'),
+    dashboardRangeTriggerText: document.querySelector('.dashboard-range-trigger-text'),
+    dashboardRangeOptions: document.getElementById('dashboard-range-options'),
     
     // Forms
     expenseForm: document.getElementById('expense-form'),
@@ -124,6 +130,16 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initialize dashboard card spotlight-hover effect
     initSpotlightCards();
 
+    // Wire up the dashboard's "Showing" time-range dropdown
+    initDashboardRangeDropdown();
+
+    // Wire up the marketing cover page (About scroll-reveal, CTA hand-off)
+    initCoverPage();
+
+    // First-login welcome popup and the Settings "Your profile" card
+    initOnboarding();
+    initProfileSettings();
+
     // Check authentication and initialize app data
     initAuth();
 });
@@ -141,6 +157,160 @@ function initSpotlightCards() {
         card.style.setProperty('--spot-x', `${e.clientX - rect.left}px`);
         card.style.setProperty('--spot-y', `${e.clientY - rect.top}px`);
     });
+}
+
+// ==========================================================================
+// COVER / MARKETING PAGE
+// Shown to logged-out visitors before the login form. initAuth() decides
+// whether the cover or the app is visible on load; this just wires up its
+// own interactions (About scroll, hero entrance, CTA hand-off to login).
+// ==========================================================================
+function initCoverPage() {
+    const btnCoverCta = document.getElementById('btn-cover-cta');
+    const btnCoverAboutCta = document.getElementById('btn-cover-about-cta');
+    const btnCoverAbout = document.getElementById('btn-cover-about');
+    const coverAbout = document.getElementById('cover-about');
+    const coverHeadline = document.getElementById('cover-headline');
+
+    // Hero entrance: mask each word of the headline behind overflow:hidden
+    // and slide it up into place, staggered - a lightweight, dependency-free
+    // version of a text-mask reveal (no need for a SplitText-style library
+    // for a single headline). The subtext/CTA fade in just behind it.
+    if (coverHeadline) {
+        const words = coverHeadline.textContent.trim().split(/\s+/);
+        coverHeadline.textContent = '';
+        words.forEach((word, i) => {
+            const mask = document.createElement('span');
+            mask.className = 'word-mask';
+            const inner = document.createElement('span');
+            inner.className = 'word-inner';
+            inner.textContent = word;
+            inner.style.transitionDelay = `${i * 0.05}s`;
+            mask.appendChild(inner);
+            coverHeadline.appendChild(mask);
+            coverHeadline.appendChild(document.createTextNode(' '));
+        });
+        // Double rAF so the initial (unrevealed) state actually paints
+        // before the class flips - otherwise the browser can coalesce
+        // both states into one frame and skip the transition entirely.
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                coverHeadline.classList.add('headline-revealed');
+            });
+        });
+    }
+
+    document.querySelectorAll('.cover-fade-item').forEach((el, i) => {
+        el.style.transitionDelay = `${0.35 + i * 0.1}s`;
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                el.classList.add('revealed');
+            });
+        });
+    });
+
+    // Hand off from the cover to the login form. Plays a brief exit
+    // transition on the cover, then swaps visibility once it finishes.
+    function goToAuth() {
+        if (!elements.coverContainer) return;
+        elements.coverContainer.classList.add('cover-exit');
+        let finished = false;
+        const finish = () => {
+            if (finished) return;
+            finished = true;
+            clearTimeout(fallbackTimer);
+            elements.coverContainer.removeEventListener('transitionend', finish);
+            elements.coverContainer.classList.add('hidden');
+            elements.coverContainer.classList.remove('cover-exit');
+            elements.authContainer.classList.remove('hidden');
+            const authCard = document.querySelector('.auth-card');
+            if (authCard) {
+                authCard.classList.remove('auth-enter-animate');
+                void authCard.offsetWidth;
+                authCard.classList.add('auth-enter-animate');
+            }
+        };
+        elements.coverContainer.addEventListener('transitionend', finish);
+        // transitionend can be skipped (e.g. tab backgrounded mid-transition),
+        // which would leave the visitor stuck on the cover - so also finish on a timer.
+        const fallbackTimer = setTimeout(finish, 600);
+    }
+
+    // Reverse hand-off: back out of the login form to the cover. Forces
+    // the cover's exit state first, then releases it next frame so the
+    // existing opacity/transform transition plays as a fade-IN instead.
+    function goToCover() {
+        if (!elements.coverContainer) return;
+        elements.authContainer.classList.add('hidden');
+        elements.coverContainer.classList.remove('hidden');
+        elements.coverContainer.classList.add('cover-exit');
+        void elements.coverContainer.offsetWidth;
+        requestAnimationFrame(() => {
+            elements.coverContainer.classList.remove('cover-exit');
+        });
+    }
+
+    const btnAuthBack = document.getElementById('btn-auth-back');
+    if (btnAuthBack) btnAuthBack.addEventListener('click', goToCover);
+
+    if (btnCoverCta) btnCoverCta.addEventListener('click', goToAuth);
+    if (btnCoverAboutCta) btnCoverAboutCta.addEventListener('click', goToAuth);
+
+    if (btnCoverAbout && coverAbout) {
+        btnCoverAbout.addEventListener('click', () => {
+            coverAbout.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+    }
+
+    // Scroll-reveal for the About section's feature blocks: one-shot,
+    // staggered by each item's index within its row.
+    const revealItems = document.querySelectorAll('#cover-about .reveal-item');
+    if (revealItems.length && 'IntersectionObserver' in window) {
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (!entry.isIntersecting) return;
+                const group = Array.from(entry.target.parentElement.children);
+                const index = group.indexOf(entry.target);
+                entry.target.style.transitionDelay = `${index * 0.08}s`;
+                entry.target.classList.add('revealed');
+                observer.unobserve(entry.target);
+            });
+        }, { threshold: 0.2 });
+        revealItems.forEach(item => observer.observe(item));
+    } else {
+        revealItems.forEach(item => item.classList.add('revealed'));
+    }
+}
+
+// ==========================================================================
+// FIXED-POSITION DROPDOWN HELPER
+// ==========================================================================
+// position:fixed is normally relative to the viewport - but per spec, any
+// ancestor with a non-"none" transform/perspective/filter (or
+// will-change:transform) becomes its containing block instead. Every
+// .tab-content keeps animation-fill-mode:forwards on tabFadeIn, so even
+// long after the entrance animation finishes it still computes to
+// `transform: matrix(1,0,0,1,0,0)` - the identity matrix, visually a
+// no-op, but NOT the literal value "none". That silently turns every tab
+// into exactly such a containing block, so a fixed-position dropdown
+// positioned with plain getBoundingClientRect() math renders dozens of
+// pixels away from where it was told to go (off by whatever the tab
+// content's own offset from the viewport happens to be).
+// This finds that real containing block's viewport offset, if any, so it
+// can be subtracted back out when setting style.top/left.
+function getFixedPositioningOffset(el) {
+    let node = el.parentElement;
+    while (node && node !== document.body) {
+        const cs = getComputedStyle(node);
+        if (cs.transform !== 'none' || cs.perspective !== 'none' ||
+            (cs.filter && cs.filter !== 'none') ||
+            (cs.willChange && cs.willChange.includes('transform'))) {
+            const rect = node.getBoundingClientRect();
+            return { top: rect.top, left: rect.left };
+        }
+        node = node.parentElement;
+    }
+    return { top: 0, left: 0 };
 }
 
 // ==========================================================================
@@ -193,14 +363,21 @@ async function initAuth() {
         if (session) {
             state.currentUser = session.user.email;
             elements.sidebarUserWelcome.textContent = `Logged in as ${state.currentUser}`;
+            elements.coverContainer.classList.add('hidden');
             elements.authContainer.classList.add('hidden');
             elements.appContainer.classList.remove('hidden');
+            // The floating advisor button is a fixed-position element outside
+            // both #cover-container and #app-container, so it needs its own
+            // explicit show/hide here - it must only exist once actually
+            // logged into the app, never on the cover or login screen.
+            document.getElementById('btn-advisor-float').classList.remove('hidden');
             // Wires up the sidebar Log Out button (among other auth listeners).
             // Without this, a user who loads the page already logged in (the
             // normal case) gets a dead Log Out button - the listener was only
             // ever attached from the "no session" branch below.
             setupAuthEventListeners();
             fetchData();
+            loadProfileAndOnboard(session.user);
             // Dashboard starts marked active in the server-rendered HTML
             // (never goes through switchTab() on first load), so it needs
             // its own stagger trigger here.
@@ -208,7 +385,9 @@ async function initAuth() {
         } else {
             state.currentUser = null;
             elements.appContainer.classList.add('hidden');
-            elements.authContainer.classList.remove('hidden');
+            elements.authContainer.classList.add('hidden');
+            elements.coverContainer.classList.remove('hidden');
+            document.getElementById('btn-advisor-float').classList.add('hidden');
             setupAuthEventListeners();
         }
     } catch (err) {
@@ -360,7 +539,14 @@ function setupAuthEventListeners() {
             const { error } = await supabaseClient.auth.signOut();
             if (!error) {
                 showToast('Logged out successfully', 'success');
-                initAuth();
+                // Straight back to the login form, not the marketing cover -
+                // a logout is a returning user, not a first-time visitor.
+                state.currentUser = null;
+                resetProfileState();
+                elements.appContainer.classList.add('hidden');
+                elements.coverContainer.classList.add('hidden');
+                elements.authContainer.classList.remove('hidden');
+                document.getElementById('btn-advisor-float').classList.add('hidden');
             } else {
                 showToast('Failed to log out', 'error');
             }
@@ -375,6 +561,7 @@ function setupAuthEventListeners() {
 
 async function handleSessionExpiry() {
     state.currentUser = null;
+    resetProfileState();
     try {
         await supabaseClient.auth.signOut();
     } catch (e) {
@@ -408,6 +595,397 @@ async function apiCall(url, options = {}) {
         }
         throw err;
     }
+}
+
+// ==========================================================================
+// ONBOARDING & PROFILE (first-login welcome popup, greetings, Settings card)
+// ==========================================================================
+
+// Accounts created before the welcome popup shipped never see it - they can
+// still fill in their profile from Settings. Compared against Supabase's
+// user.created_at.
+const ONBOARDING_CUTOFF = '2026-10-03T00:00:00Z';
+
+const LIFE_STAGE_OPTIONS = [
+    { value: 'student', label: 'Student' },
+    { value: 'adult', label: 'Adult' },
+    { value: 'retired', label: 'Retired' }
+];
+
+const PROFILE_NAME_MAX = 50;
+const PROFILE_GOAL_MAX = 500;
+const ONBOARDING_SUCCESS_HOLD_MS = 1700;
+
+// Life-stage dropdown instances, created in initOnboarding/initProfileSettings
+let onboardingStageSelect = null;
+let settingsStageSelect = null;
+
+function isNewSignup(user) {
+    return !!(user && user.created_at && new Date(user.created_at) >= new Date(ONBOARDING_CUTOFF));
+}
+
+async function fetchProfile() {
+    const response = await apiCall('/api/profile');
+    if (!response.ok) throw new Error('Failed to load profile');
+    const data = await response.json();
+    state.profile = data.profile || null;
+}
+
+// Runs after login: loads the profile, personalizes the UI, and opens the
+// welcome popup for brand-new accounts that haven't filled it in yet.
+async function loadProfileAndOnboard(user) {
+    try {
+        await fetchProfile();
+    } catch (err) {
+        console.error('Error fetching profile:', err);
+        return;
+    }
+    applyProfileGreeting();
+    populateProfileSettings();
+    renderAdvisorHistory();
+    if (!state.profile && isNewSignup(user)) {
+        openOnboarding();
+    }
+}
+
+function applyProfileGreeting() {
+    const greetingEl = document.getElementById('dashboard-greeting');
+    const profile = state.profile;
+    if (greetingEl) {
+        greetingEl.textContent = profile ? `Hi ${profile.first_name}` : 'Financial Overview';
+    }
+    if (profile) {
+        elements.sidebarUserWelcome.textContent = `${profile.first_name} ${profile.last_name}`;
+    } else {
+        elements.sidebarUserWelcome.textContent = state.currentUser ? `Logged in as ${state.currentUser}` : 'Welcome!';
+    }
+}
+
+// Called on logout / session expiry so the next account starts clean.
+function resetProfileState() {
+    state.profile = null;
+    closeOnboarding(true);
+    applyProfileGreeting();
+    populateProfileSettings();
+}
+
+// Same rules as helpers.parse_profile_payload on the backend. Returns an
+// error message, or null when the payload is valid.
+function validateProfilePayload(payload) {
+    if (!payload.first_name) return 'Please enter your first name.';
+    if (!payload.last_name) return 'Please enter your last name.';
+    if (payload.first_name.length > PROFILE_NAME_MAX || payload.last_name.length > PROFILE_NAME_MAX) {
+        return `Names must be ${PROFILE_NAME_MAX} characters or fewer.`;
+    }
+    if (!payload.life_stage) return 'Please choose whether you are a student, adult or retired.';
+    if (!payload.savings_goal) return 'Please tell us a little about your goals and finances.';
+    if (payload.savings_goal.length > PROFILE_GOAL_MAX) {
+        return `This must be ${PROFILE_GOAL_MAX} characters or fewer.`;
+    }
+    return null;
+}
+
+async function saveProfile(payload) {
+    const response = await apiCall('/api/profile', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+        throw new Error(data.error || 'Could not save your profile. Please try again.');
+    }
+    state.profile = data.profile;
+    applyProfileGreeting();
+    populateProfileSettings();
+    renderAdvisorHistory();
+}
+
+function showProfileError(el, message) {
+    if (!el) return;
+    el.textContent = message || '';
+    el.classList.toggle('hidden', !message);
+}
+
+function wireGoalCounter(textarea, counter) {
+    const update = () => {
+        const len = textarea.value.length;
+        counter.textContent = `${len}/${PROFILE_GOAL_MAX}`;
+        counter.classList.toggle('near-limit', len > PROFILE_GOAL_MAX - 50);
+    };
+    textarea.addEventListener('input', update);
+    update();
+    return update;
+}
+
+// Builds an accessible custom dropdown (listbox) inside `container`, styled
+// like the dashboard "Showing" dropdown. Returns { getValue, setValue }.
+function createLifeStageSelect(container) {
+    const labelId = container.dataset.labelledby;
+    const listId = `${container.id}-list`;
+    container.innerHTML = `
+        <button type="button" class="life-stage-trigger" aria-haspopup="listbox" aria-expanded="false" aria-controls="${listId}" ${labelId ? `aria-labelledby="${labelId} ${container.id}-value"` : ''}>
+            <span class="life-stage-value is-placeholder" id="${container.id}-value">Choose one</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="life-stage-chevron" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="life-stage-options hidden" role="listbox" id="${listId}" ${labelId ? `aria-labelledby="${labelId}"` : ''}>
+            ${LIFE_STAGE_OPTIONS.map(o => `<div class="life-stage-option" role="option" tabindex="-1" aria-selected="false" data-value="${o.value}">${o.label}</div>`).join('')}
+        </div>
+    `;
+
+    const trigger = container.querySelector('.life-stage-trigger');
+    const valueEl = container.querySelector('.life-stage-value');
+    const list = container.querySelector('.life-stage-options');
+    const options = Array.from(container.querySelectorAll('.life-stage-option'));
+    let value = '';
+
+    const isOpen = () => !list.classList.contains('hidden');
+
+    const open = () => {
+        list.classList.remove('hidden');
+        trigger.classList.add('open');
+        trigger.setAttribute('aria-expanded', 'true');
+        const selected = options.find(o => o.dataset.value === value) || options[0];
+        selected.focus();
+    };
+
+    const close = (refocus) => {
+        if (!isOpen()) return;
+        list.classList.add('hidden');
+        trigger.classList.remove('open');
+        trigger.setAttribute('aria-expanded', 'false');
+        if (refocus) trigger.focus();
+    };
+
+    const setValue = (newValue) => {
+        const match = LIFE_STAGE_OPTIONS.find(o => o.value === newValue);
+        value = match ? match.value : '';
+        valueEl.textContent = match ? match.label : 'Choose one';
+        valueEl.classList.toggle('is-placeholder', !match);
+        options.forEach(o => {
+            const selected = o.dataset.value === value;
+            o.classList.toggle('active', selected);
+            o.setAttribute('aria-selected', String(selected));
+        });
+    };
+
+    trigger.addEventListener('click', (e) => {
+        e.stopPropagation();
+        isOpen() ? close(false) : open();
+    });
+
+    trigger.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+            e.preventDefault();
+            open();
+        }
+    });
+
+    options.forEach((opt, i) => {
+        opt.addEventListener('click', (e) => {
+            e.stopPropagation();
+            setValue(opt.dataset.value);
+            close(true);
+        });
+        opt.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                options[(i + 1) % options.length].focus();
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                options[(i - 1 + options.length) % options.length].focus();
+            } else if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                setValue(opt.dataset.value);
+                close(true);
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                e.stopPropagation();
+                close(true);
+            } else if (e.key === 'Tab') {
+                close(false);
+            }
+        });
+    });
+
+    document.addEventListener('click', (e) => {
+        if (!container.contains(e.target)) close(false);
+    });
+
+    return { getValue: () => value, setValue };
+}
+
+function readProfileForm(prefix, stageSelect) {
+    return {
+        first_name: document.getElementById(`${prefix}-first-name`).value.trim(),
+        last_name: document.getElementById(`${prefix}-last-name`).value.trim(),
+        life_stage: stageSelect ? stageSelect.getValue() : '',
+        savings_goal: document.getElementById(`${prefix}-goal`).value.trim()
+    };
+}
+
+// ---- Welcome popup ----
+
+function getOnboardingFocusables() {
+    const modal = document.getElementById('onboarding-modal');
+    return Array.from(modal.querySelectorAll('button, input, textarea, [tabindex="0"]'))
+        .filter(el => !el.disabled && el.offsetParent !== null);
+}
+
+function setAppInert(inert) {
+    ['app-container', 'btn-advisor-float', 'advisor-drawer'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.inert = inert;
+    });
+}
+
+function openOnboarding() {
+    const modal = document.getElementById('onboarding-modal');
+    if (!modal || modal.classList.contains('open')) return;
+
+    document.getElementById('onboarding-form').reset();
+    if (onboardingStageSelect) onboardingStageSelect.setValue('');
+    document.getElementById('onboarding-goal').dispatchEvent(new Event('input'));
+    showProfileError(document.getElementById('onboarding-error'), '');
+    document.getElementById('onboarding-form-step').classList.remove('hidden', 'is-leaving');
+    document.getElementById('onboarding-success-step').classList.add('hidden');
+
+    modal.classList.remove('hidden', 'is-closing');
+    setAppInert(true);
+    document.body.classList.add('onboarding-active');
+    // Reflow so the .open transition runs from the hidden state
+    void modal.offsetWidth;
+    modal.classList.add('open');
+
+    setTimeout(() => document.getElementById('onboarding-first-name').focus({ preventScroll: true }), 700);
+}
+
+function closeOnboarding(immediate = false) {
+    const modal = document.getElementById('onboarding-modal');
+    if (!modal || modal.classList.contains('hidden')) return;
+
+    const finish = () => {
+        modal.classList.add('hidden');
+        modal.classList.remove('open', 'is-closing');
+        setAppInert(false);
+        document.body.classList.remove('onboarding-active');
+    };
+
+    if (immediate) {
+        finish();
+        return;
+    }
+    modal.classList.add('is-closing');
+    modal.classList.remove('open');
+    setTimeout(finish, 550);
+}
+
+function initOnboarding() {
+    const modal = document.getElementById('onboarding-modal');
+    if (!modal) return;
+
+    onboardingStageSelect = createLifeStageSelect(document.getElementById('onboarding-stage-select'));
+    modal.querySelectorAll('.onboarding-reveal').forEach((el, i) => el.style.setProperty('--i', i));
+    wireGoalCounter(document.getElementById('onboarding-goal'), document.getElementById('onboarding-goal-count'));
+
+    // Required popup: Escape does nothing, and Tab stays inside the card.
+    modal.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            e.preventDefault();
+            return;
+        }
+        if (e.key !== 'Tab') return;
+        const focusables = getOnboardingFocusables();
+        if (focusables.length === 0) return;
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+            e.preventDefault();
+            last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+            e.preventDefault();
+            first.focus();
+        }
+    });
+
+    const form = document.getElementById('onboarding-form');
+    const submitBtn = document.getElementById('btn-onboarding-submit');
+    const errorEl = document.getElementById('onboarding-error');
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const payload = readProfileForm('onboarding', onboardingStageSelect);
+        const validationError = validateProfilePayload(payload);
+        showProfileError(errorEl, validationError);
+        if (validationError) return;
+
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Saving...';
+        try {
+            await saveProfile(payload);
+            document.getElementById('onboarding-success-title').textContent = `You're all set, ${state.profile.first_name}`;
+            const formStep = document.getElementById('onboarding-form-step');
+            const successStep = document.getElementById('onboarding-success-step');
+            formStep.classList.add('is-leaving');
+            setTimeout(() => {
+                formStep.classList.add('hidden');
+                successStep.classList.remove('hidden');
+            }, 260);
+            setTimeout(() => closeOnboarding(), 260 + ONBOARDING_SUCCESS_HOLD_MS);
+        } catch (err) {
+            if (err.message !== 'Unauthorized') showProfileError(errorEl, err.message);
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Get started';
+        }
+    });
+}
+
+// ---- Settings "Your profile" card ----
+
+let refreshSettingsGoalCounter = null;
+
+function populateProfileSettings() {
+    const profile = state.profile;
+    const first = document.getElementById('profile-first-name');
+    if (!first) return;
+    first.value = profile ? profile.first_name : '';
+    document.getElementById('profile-last-name').value = profile ? profile.last_name : '';
+    document.getElementById('profile-goal').value = profile ? profile.savings_goal : '';
+    if (settingsStageSelect) settingsStageSelect.setValue(profile ? profile.life_stage : '');
+    if (refreshSettingsGoalCounter) refreshSettingsGoalCounter();
+    showProfileError(document.getElementById('profile-settings-error'), '');
+}
+
+function initProfileSettings() {
+    const form = document.getElementById('profile-settings-form');
+    if (!form) return;
+
+    settingsStageSelect = createLifeStageSelect(document.getElementById('profile-stage-select'));
+    refreshSettingsGoalCounter = wireGoalCounter(document.getElementById('profile-goal'), document.getElementById('profile-goal-count'));
+
+    const saveBtn = document.getElementById('btn-profile-save');
+    const errorEl = document.getElementById('profile-settings-error');
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const payload = readProfileForm('profile', settingsStageSelect);
+        const validationError = validateProfilePayload(payload);
+        showProfileError(errorEl, validationError);
+        if (validationError) return;
+
+        saveBtn.disabled = true;
+        saveBtn.textContent = 'Saving...';
+        try {
+            await saveProfile(payload);
+            showToast('Profile saved.', 'success');
+        } catch (err) {
+            if (err.message !== 'Unauthorized') showProfileError(errorEl, err.message);
+        } finally {
+            saveBtn.disabled = false;
+            saveBtn.textContent = 'Save profile';
+        }
+    });
 }
 
 // ==========================================================================
@@ -694,19 +1272,18 @@ function getActiveChatArea() {
 }
 
 function renderAdvisorHistory() {
+    const firstName = state.profile ? escapeHtml(state.profile.first_name) : '';
     const welcomeHtml = `
         <div class="advisor-fs-welcome">
-            <div class="advisor-fs-avatar">🤖</div>
-            <div class="advisor-fs-welcome-text">
-                <h3>Hi there! I'm your Trackify Financial Coach.</h3>
-                <p>I can see your real-time spending and budget categories. Ask me anything — from cutting costs to hitting your targets faster.</p>
-            </div>
+            <span class="advisor-fs-eyebrow">AI Advisor</span>
+            <h3>${firstName ? `Hi ${firstName}, I'm your Trackify financial coach.` : "Hi, I'm your Trackify financial coach."}</h3>
+            <p>I can see your real spending and budget categories. Ask me anything, from cutting costs to hitting your targets faster.</p>
         </div>
     `;
     const drawerWelcomeHtml = `
         <div class="advisor-welcome-msg">
             <div class="advisor-avatar">🤖</div>
-            <p>Hi there! I am your <strong>Trackify Financial Coach</strong>. I can analyze your MTD spending and help you build healthy budget habits. How can I help you today?</p>
+            <p>Hi ${firstName || 'there'}! I am your <strong>Trackify Financial Coach</strong>. I can analyze your MTD spending and help you build healthy budget habits. How can I help you today?</p>
         </div>
     `;
 
@@ -1120,18 +1697,79 @@ function animateCountUp(el, target, duration = 900) {
     _countUpFrames.set(el, requestAnimationFrame(tick));
 }
 
-function updateDashboardMetrics() {
-    let incomeTotal = 0;
-    let expenseTotal = 0;
-    
-    state.transactions.forEach(t => {
-        if (t.type === 'income') {
-            incomeTotal += t.amount;
-        } else {
-            expenseTotal += t.amount;
+// Returns the [start, end] window for the selected dashboard range, plus the
+// equivalent immediately-prior window for the "vs previous period" compare.
+// 'all' has no prior window (there's nothing before "all time").
+function getStatsRangeBounds(rangeKey, now) {
+    const oneDay = 24 * 60 * 60 * 1000;
+    if (rangeKey === 'ytd') {
+        const jan1 = new Date(now.getFullYear(), 0, 1);
+        const daysSoFar = Math.round((now - jan1) / oneDay);
+        return {
+            currentStart: jan1,
+            prevStart: new Date(now.getFullYear() - 1, 0, 1),
+            prevEnd: new Date(now.getFullYear() - 1, 0, 1 + daysSoFar)
+        };
+    }
+    const spanDays = { week: 7, month: 30, '6months': 182, year: 365 }[rangeKey];
+    if (!spanDays) return { currentStart: null, prevStart: null, prevEnd: null };
+    const currentStart = new Date(now - spanDays * oneDay);
+    return {
+        currentStart,
+        prevStart: new Date(currentStart - spanDays * oneDay),
+        prevEnd: currentStart
+    };
+}
+
+function sumTransactionsInRange(transactions, start, end) {
+    let income = 0, expense = 0;
+    transactions.forEach(t => {
+        if (start) {
+            const td = new Date(t.date);
+            if (td < start || (end && td >= end)) return;
         }
+        if (t.type === 'income') income += t.amount;
+        else expense += t.amount;
     });
-    
+    return { income, expense };
+}
+
+// Updates one stat card's "vs previous period" sub-label with a real
+// percentage change, colored by whether that change is favorable (more
+// income is good, more expense is bad).
+function updateCompareSubLabel(el, current, previous, higherIsGood) {
+    if (!el) return;
+    if (previous === 0) {
+        el.textContent = current === 0 ? 'No activity yet' : 'New activity this period';
+        el.style.color = 'var(--text-muted)';
+        return;
+    }
+    const pct = ((current - previous) / previous) * 100;
+    const sign = pct > 0 ? '+' : '';
+    const favorable = higherIsGood ? pct >= 0 : pct <= 0;
+    el.textContent = `${sign}${pct.toFixed(1)}% vs previous period`;
+    el.style.color = favorable ? 'var(--color-emerald)' : 'var(--color-rose)';
+}
+
+function updateDashboardMetrics(animate = false) {
+    // Replay a quick staggered "refresh" on the three stat cards when this
+    // is a user-triggered range change (not the initial page load, which
+    // already gets its own entrance stagger from applyTabStagger).
+    if (animate) {
+        const columns = document.querySelectorAll('.stats-grid-unified .stat-column');
+        columns.forEach((col, i) => {
+            col.classList.remove('refreshing');
+            void col.offsetWidth;
+            col.style.animationDelay = `${i * 0.06}s`;
+            col.classList.add('refreshing');
+        });
+    }
+
+    const now = new Date();
+    const rangeKey = state.dashboardRange;
+    const { currentStart, prevStart, prevEnd } = getStatsRangeBounds(rangeKey, now);
+
+    const { income: incomeTotal, expense: expenseTotal } = sumTransactionsInRange(state.transactions, currentStart, null);
     const netSavings = incomeTotal - expenseTotal;
 
     // Update labels (count up rather than snapping the text in)
@@ -1139,25 +1777,49 @@ function updateDashboardMetrics() {
     animateCountUp(elements.dashboardTotalExpenses, expenseTotal);
     animateCountUp(elements.dashboardNetSavings, netSavings);
 
-    // Sidebar Update
-    elements.sidebarNetBalance.textContent = formatCurrency(netSavings);
-    
-    if (netSavings < 0) {
-        elements.dashboardNetSavings.style.color = 'var(--color-rose)';
+    const incomeSubEl = document.getElementById('dashboard-total-income-sub');
+    const expensesSubEl = document.getElementById('dashboard-total-expenses-sub');
+    const savingsRateEl = document.getElementById('dashboard-savings-rate');
+
+    if (prevStart) {
+        const prev = sumTransactionsInRange(state.transactions, prevStart, prevEnd);
+        updateCompareSubLabel(incomeSubEl, incomeTotal, prev.income, true);
+        updateCompareSubLabel(expensesSubEl, expenseTotal, prev.expense, false);
+    } else {
+        if (incomeSubEl) { incomeSubEl.textContent = 'All-time total'; incomeSubEl.style.color = 'var(--text-muted)'; }
+        if (expensesSubEl) { expensesSubEl.textContent = 'All-time total'; expensesSubEl.style.color = 'var(--text-muted)'; }
+    }
+    if (savingsRateEl) {
+        const savingsRate = incomeTotal > 0 ? Math.round((netSavings / incomeTotal) * 100) : 0;
+        savingsRateEl.textContent = `Savings rate ${savingsRate}%`;
+    }
+
+    // The Net Balance card's color follows the selected period (it has to
+    // match the number it's actually showing).
+    elements.dashboardNetSavings.style.color = netSavings < 0 ? 'var(--color-rose)'
+        : netSavings > 0 ? 'var(--color-emerald)' : 'var(--text-primary)';
+
+    // Sidebar always reflects the true all-time balance, independent of
+    // whatever range is selected on the dashboard - it's shown on every
+    // tab, not just this one, so it shouldn't shift under the user when
+    // they change the dashboard's own filter.
+    const allTime = sumTransactionsInRange(state.transactions, null, null);
+    const allTimeNet = allTime.income - allTime.expense;
+    elements.sidebarNetBalance.textContent = formatCurrency(allTimeNet);
+
+    if (allTimeNet < 0) {
         elements.sidebarNetBalance.style.color = 'var(--color-rose)';
         if (elements.sidebarStatusMsg) {
             elements.sidebarStatusMsg.innerHTML = 'Spending more than earning!';
             elements.sidebarStatusMsg.style.color = 'var(--color-rose)';
         }
-    } else if (netSavings > 0) {
-        elements.dashboardNetSavings.style.color = 'var(--color-emerald)';
+    } else if (allTimeNet > 0) {
         elements.sidebarNetBalance.style.color = 'var(--color-emerald)';
         if (elements.sidebarStatusMsg) {
             elements.sidebarStatusMsg.innerHTML = 'Healthy savings progress!';
             elements.sidebarStatusMsg.style.color = 'var(--text-muted)';
         }
     } else {
-        elements.dashboardNetSavings.style.color = 'var(--text-primary)';
         elements.sidebarNetBalance.style.color = 'var(--text-primary)';
         if (elements.sidebarStatusMsg) {
             elements.sidebarStatusMsg.innerHTML = 'Balance is perfectly neutral.';
@@ -1208,6 +1870,71 @@ function initNavigation() {
             btn.classList.add('active');
             state.chartFilter = btn.getAttribute('data-chart-filter');
             renderCharts();
+        });
+    });
+}
+
+const DASHBOARD_RANGE_LABELS = {
+    all: 'All time',
+    week: 'Past week',
+    month: 'Past month',
+    '6months': 'Past 6 months',
+    ytd: 'Year to date',
+    year: 'Past year'
+};
+
+function closeDashboardRangeDropdown() {
+    if (elements.dashboardRangeOptions) elements.dashboardRangeOptions.classList.add('hidden');
+    if (elements.dashboardRangeTrigger) elements.dashboardRangeTrigger.classList.remove('open');
+}
+document.addEventListener('click', closeDashboardRangeDropdown);
+
+function initDashboardRangeDropdown() {
+    const trigger = elements.dashboardRangeTrigger;
+    const options = elements.dashboardRangeOptions;
+    if (!trigger || !options) return;
+
+    trigger.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const wasHidden = options.classList.contains('hidden');
+        closeAllCustomDropdowns();
+        closeAllCustomCalendars();
+        closeAllActionMenus();
+        if (wasHidden) {
+            // position:fixed with coordinates computed from the trigger,
+            // same reasoning as the datepicker calendar fix elsewhere in
+            // this file: a position:absolute dropdown can get clipped by
+            // an ancestor's overflow:hidden (used here for card hover
+            // glows), so this one is placed in viewport coordinates.
+            const rect = trigger.getBoundingClientRect();
+            const offset = getFixedPositioningOffset(trigger);
+            options.classList.remove('hidden');
+            const optionsWidth = options.offsetWidth;
+            let left = rect.right - optionsWidth;
+            left = Math.max(8, Math.min(left, window.innerWidth - optionsWidth - 8));
+            options.style.left = `${left - offset.left}px`;
+            options.style.top = `${rect.bottom + 8 - offset.top}px`;
+            trigger.classList.add('open');
+        }
+    });
+
+    options.addEventListener('click', (e) => e.stopPropagation());
+
+    options.querySelectorAll('.dashboard-range-option').forEach(opt => {
+        opt.addEventListener('click', () => {
+            const value = opt.getAttribute('data-value');
+            if (value === state.dashboardRange) {
+                closeDashboardRangeDropdown();
+                return;
+            }
+            state.dashboardRange = value;
+            options.querySelectorAll('.dashboard-range-option').forEach(o => o.classList.remove('active'));
+            opt.classList.add('active');
+            if (elements.dashboardRangeTriggerText) {
+                elements.dashboardRangeTriggerText.textContent = DASHBOARD_RANGE_LABELS[value] || value;
+            }
+            closeDashboardRangeDropdown();
+            updateDashboardMetrics(true);
         });
     });
 }
@@ -2113,12 +2840,13 @@ function toggleActionMenu(event, btnElement) {
         // why) so it has to be placed in viewport coordinates here rather
         // than relying on a CSS "top: 100%" of its container.
         const btnRect = btnElement.getBoundingClientRect();
+        const offset = getFixedPositioningOffset(btnElement);
         dropdown.classList.remove('hidden');
         const dropdownWidth = dropdown.offsetWidth;
         let left = btnRect.right - dropdownWidth;
         left = Math.max(8, Math.min(left, window.innerWidth - dropdownWidth - 8));
-        dropdown.style.left = `${left}px`;
-        dropdown.style.top = `${btnRect.bottom + 4}px`;
+        dropdown.style.left = `${left - offset.left}px`;
+        dropdown.style.top = `${btnRect.bottom + 4 - offset.top}px`;
     }
 }
 
@@ -2558,8 +3286,25 @@ function setupCustomDatepicker(prefix, isOptional = false) {
         closeAllCustomDropdowns();
         closeAllActionMenus();
         if (wasHidden) {
+            // .custom-datepicker-calendar is position:fixed (a short
+            // ancestor .card.glass clips it via overflow:hidden otherwise -
+            // that's the "calendar gets hidden" bug on the History tab's
+            // date filter), so it's placed in viewport coordinates here
+            // rather than relying on a CSS "top: 100%" of its container.
+            const triggerRect = trigger.getBoundingClientRect();
+            const offset = getFixedPositioningOffset(trigger);
             calendar.classList.remove('hidden');
             renderCalendarGrid(prefix, isOptional);
+            const calendarWidth = calendar.offsetWidth;
+            let left = triggerRect.left;
+            left = Math.max(8, Math.min(left, window.innerWidth - calendarWidth - 8));
+            let top = triggerRect.bottom + 8;
+            if (top + calendar.offsetHeight > window.innerHeight - 8) {
+                top = triggerRect.top - calendar.offsetHeight - 8;
+            }
+            top = Math.max(8, Math.min(top, window.innerHeight - calendar.offsetHeight - 8));
+            calendar.style.left = `${left - offset.left}px`;
+            calendar.style.top = `${top - offset.top}px`;
         }
     });
     

@@ -20,7 +20,7 @@ import database  # noqa: E402 - must come after load_dotenv()
 
 # Parents before children (chat_messages references chat_sessions).
 COPY_ORDER = ('categories', 'chat_sessions', 'chat_messages', 'transactions',
-              'user_settings', 'weekly_email_log')
+              'user_settings', 'user_profiles', 'weekly_email_log')
 
 
 def main():
