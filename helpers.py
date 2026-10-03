@@ -109,7 +109,7 @@ def require_auth(view_func):
 # ----------------- DATABASE -----------------
 
 def get_db():
-    """Returns a SQLite connection cached on flask.g for the life of the
+    """Returns a database connection cached on flask.g for the life of the
     request; closed automatically by the teardown handler below."""
     if 'db' not in g:
         g.db = database.get_db_connection()
@@ -150,17 +150,18 @@ def get_user_financial_profile(user_id):
     current_month_prefix = datetime.date.today().strftime('%Y-%m-')
 
     row_spent = conn.execute('''
-        SELECT SUM(amount) FROM transactions
-        WHERE user_id = ? AND type = 'expense' AND date LIKE ?
+        SELECT SUM(amount) AS total FROM transactions
+        WHERE user_id = %s AND type = 'expense' AND date LIKE %s
     ''', (user_id, current_month_prefix + '%')).fetchone()
-    mtd_spent = row_spent[0] if row_spent and row_spent[0] is not None else 0.0
+    mtd_spent = row_spent['total'] if row_spent and row_spent['total'] is not None else 0.0
 
     cat_rows = conn.execute('''
-        SELECT category_name, SUM(amount) FROM transactions
-        WHERE user_id = ? AND type = 'expense' AND date LIKE ?
+        SELECT category_name, SUM(amount) AS total FROM transactions
+        WHERE user_id = %s AND type = 'expense' AND date LIKE %s
         GROUP BY category_name
+        ORDER BY category_name
     ''', (user_id, current_month_prefix + '%')).fetchall()
-    category_breakdown = {r['category_name']: r[1] for r in cat_rows}
+    category_breakdown = {r['category_name']: r['total'] for r in cat_rows}
 
     cat_str = ", ".join([f"{k}: ${v:.2f}" for k, v in category_breakdown.items()]) if category_breakdown else "No spending recorded this month."
 
@@ -264,7 +265,7 @@ def ensure_category(conn, user_id, category_name, icon, color):
     matching the actual 'Income' category row (broke icon/color lookup).
     """
     cat = conn.execute(
-        'SELECT name FROM categories WHERE (user_id IS NULL OR user_id = ?) AND name = ?',
+        'SELECT name FROM categories WHERE (user_id IS NULL OR user_id = %s) AND name = %s',
         (user_id, category_name)
     ).fetchone()
     if cat:
@@ -272,14 +273,14 @@ def ensure_category(conn, user_id, category_name, icon, color):
 
     if category_name.lower() == 'income':
         conn.execute(
-            'INSERT OR IGNORE INTO categories (name, icon, color, user_id) VALUES (?, ?, ?, NULL)',
+            'INSERT INTO categories (name, icon, color, user_id) VALUES (%s, %s, %s, NULL) ON CONFLICT DO NOTHING',
             ('Income', '💵', '#2B8A3E')
         )
         conn.commit()
         return 'Income'
 
     conn.execute(
-        'INSERT OR IGNORE INTO categories (name, icon, color, user_id) VALUES (?, ?, ?, ?)',
+        'INSERT INTO categories (name, icon, color, user_id) VALUES (%s, %s, %s, %s) ON CONFLICT DO NOTHING',
         (category_name, icon, color, user_id)
     )
     conn.commit()

@@ -6,3 +6,4 @@ certifi==2026.6.17
 python-dotenv==1.2.2
 requests==2.34.2
 google-genai==2.17.0
+psycopg[binary]==3.3.6

@@ -2,6 +2,7 @@ import html
 
 from flask import Blueprint, jsonify, request, g
 
+from database import NOW_SQL
 from helpers import require_auth, get_db, limiter, verify_unsubscribe_token
 
 bp = Blueprint('settings', __name__)
@@ -12,18 +13,18 @@ bp = Blueprint('settings', __name__)
 def get_settings():
     conn = get_db()
     row = conn.execute(
-        'SELECT weekly_email_enabled, weekly_email_timezone FROM user_settings WHERE user_id = ?',
+        'SELECT weekly_email_enabled, weekly_email_timezone FROM user_settings WHERE user_id = %s',
         (g.user_id,)
     ).fetchone()
 
     if row is None:
         conn.execute(
-            'INSERT INTO user_settings (user_id, weekly_email_enabled, weekly_email_timezone) VALUES (?, ?, ?)',
+            'INSERT INTO user_settings (user_id, weekly_email_enabled, weekly_email_timezone) VALUES (%s, %s, %s)',
             (g.user_id, 1, 'UTC')
         )
         conn.commit()
         row = conn.execute(
-            'SELECT weekly_email_enabled, weekly_email_timezone FROM user_settings WHERE user_id = ?',
+            'SELECT weekly_email_enabled, weekly_email_timezone FROM user_settings WHERE user_id = %s',
             (g.user_id,)
         ).fetchone()
 
@@ -46,13 +47,13 @@ def update_settings():
 
     conn = get_db()
     conn.execute(
-        '''
+        f'''
         INSERT INTO user_settings (user_id, weekly_email_enabled, weekly_email_timezone, updated_at)
-        VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+        VALUES (%s, %s, %s, {NOW_SQL})
         ON CONFLICT(user_id)
         DO UPDATE SET weekly_email_enabled = excluded.weekly_email_enabled,
                       weekly_email_timezone = excluded.weekly_email_timezone,
-                      updated_at = CURRENT_TIMESTAMP
+                      updated_at = {NOW_SQL}
         ''',
         (g.user_id, int(enabled), timezone_name)
     )
@@ -97,12 +98,12 @@ def _render_page(heading, body, action='', status=200):
 def _set_weekly_email_enabled(user_id, enabled):
     conn = get_db()
     conn.execute(
-        '''
+        f'''
         INSERT INTO user_settings (user_id, weekly_email_enabled, updated_at)
-        VALUES (?, ?, CURRENT_TIMESTAMP)
+        VALUES (%s, %s, {NOW_SQL})
         ON CONFLICT(user_id)
         DO UPDATE SET weekly_email_enabled = excluded.weekly_email_enabled,
-                      updated_at = CURRENT_TIMESTAMP
+                      updated_at = {NOW_SQL}
         ''',
         (user_id, int(enabled))
     )

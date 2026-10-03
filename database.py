@@ -1,145 +1,170 @@
-import sqlite3
 import os
 
-DB_PATH = os.path.join(os.path.dirname(__file__), 'trackify.db')
+import psycopg
+from psycopg.rows import dict_row
+
+# "Now" as 'YYYY-MM-DD HH:MM:SS' UTC text - the exact shape SQLite's
+# CURRENT_TIMESTAMP produced, which the frontend parses with `new Date(...)`.
+# Timestamps are stored as TEXT (like `date`) so API responses are unchanged.
+NOW_SQL = "to_char(now() AT TIME ZONE 'utc', 'YYYY-MM-DD HH24:MI:SS')"
+
+# Arbitrary constant key for the advisory lock that serializes init_db().
+_INIT_LOCK_KEY = 74_825_301
+
+TABLES = ('categories', 'transactions', 'user_settings', 'weekly_email_log',
+          'chat_sessions', 'chat_messages')
+
 
 def get_db_connection():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    # Enable foreign keys
-    conn.execute("PRAGMA foreign_keys = ON;")
-    return conn
+    """Opens a Postgres connection with dict rows.
+
+    DATABASE_URL is read lazily (app.py loads .env before this runs). In
+    production it should be Supabase's *transaction pooler* URI (port 6543),
+    which suits serverless; that pooler can't use prepared statements, hence
+    prepare_threshold=None.
+    """
+    url = os.environ.get('DATABASE_URL', '').strip()
+    if not url:
+        raise RuntimeError('DATABASE_URL is not set. Add your Postgres connection string to .env.')
+    return psycopg.connect(url, row_factory=dict_row, prepare_threshold=None)
+
 
 def init_db():
     conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    # Create categories table (user_id can be NULL for default categories, or TEXT for Supabase UUIDs)
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS categories (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id TEXT,
-            name TEXT NOT NULL,
-            icon TEXT NOT NULL,
-            color TEXT NOT NULL
-        )
-    ''')
-    
-    # Create a unique index for categories per user
-    cursor.execute('''
-        CREATE UNIQUE INDEX IF NOT EXISTS idx_categories_user_name 
-        ON categories(COALESCE(user_id, 'global'), name);
-    ''')
-    
-    # Create transactions table linked to user_id (TEXT for Supabase UUIDs)
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS transactions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id TEXT NOT NULL,
-            type TEXT NOT NULL, -- 'income' or 'expense'
-            amount REAL NOT NULL,
-            description TEXT NOT NULL,
-            category_name TEXT NOT NULL,
-            date TEXT NOT NULL, -- YYYY-MM-DD
-            hours_worked REAL,
-            hourly_wage REAL,
-            tax_rate REAL,
-            gross_amount REAL
-        )
-    ''')
-    
-    # Create indexes for performance
-    cursor.execute('CREATE INDEX IF NOT EXISTS idx_transactions_user_id ON transactions(user_id);')
-    
-    # Create user settings table for weekly reminder preferences and timezone
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS user_settings (
-            user_id TEXT PRIMARY KEY,
-            weekly_email_enabled INTEGER NOT NULL DEFAULT 1,
-            weekly_email_timezone TEXT NOT NULL DEFAULT 'UTC',
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-            updated_at TEXT DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-    cursor.execute('CREATE INDEX IF NOT EXISTS idx_user_settings_user_id ON user_settings(user_id);')
+    try:
+        # Several serverless instances can cold-start at once; concurrent
+        # CREATE ... IF NOT EXISTS can still collide in Postgres, so take a
+        # transaction-scoped lock first.
+        conn.execute('SELECT pg_advisory_xact_lock(%s)', (_INIT_LOCK_KEY,))
 
-    # Create weekly email send log. The UNIQUE(user_id, week_start) pair is the
-    # duplicate guard: the job "claims" a row before sending, so two overlapping
-    # runs (cron firing twice, multiple gunicorn workers) can never both send the
-    # same user the same week's recap.
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS weekly_email_log (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id TEXT NOT NULL,
-            week_start TEXT NOT NULL, -- YYYY-MM-DD, Monday of the summarized week
-            status TEXT NOT NULL DEFAULT 'sending', -- sending | sent | failed | skipped
-            attempts INTEGER NOT NULL DEFAULT 0,
-            provider_message_id TEXT,
-            error TEXT,
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-            updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(user_id, week_start)
-        )
-    ''')
-    cursor.execute('CREATE INDEX IF NOT EXISTS idx_weekly_email_log_user_id ON weekly_email_log(user_id);')
+        # Text columns that are sorted or compared use COLLATE "C" (byte order),
+        # matching SQLite's default so list ordering doesn't change.
 
-    # Create chat_sessions table
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS chat_sessions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id TEXT NOT NULL,
-            title TEXT NOT NULL DEFAULT 'New Chat',
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-            updated_at TEXT DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-    cursor.execute('CREATE INDEX IF NOT EXISTS idx_chat_sessions_user_id ON chat_sessions(user_id);')
+        # Create categories table (user_id can be NULL for default categories, or TEXT for Supabase UUIDs)
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS categories (
+                id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+                user_id TEXT,
+                name TEXT COLLATE "C" NOT NULL,
+                icon TEXT NOT NULL,
+                color TEXT NOT NULL
+            )
+        ''')
 
-    # Create chat_messages table
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS chat_messages (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id TEXT NOT NULL,
-            session_id INTEGER REFERENCES chat_sessions(id) ON DELETE CASCADE,
-            role TEXT NOT NULL,
-            content TEXT NOT NULL,
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-    cursor.execute('CREATE INDEX IF NOT EXISTS idx_chat_messages_user_id ON chat_messages(user_id);')
+        # Create a unique index for categories per user
+        conn.execute('''
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_categories_user_name
+            ON categories(COALESCE(user_id, 'global'), name);
+        ''')
 
-    # Migrate existing chat_messages: add session_id column if missing (safe for existing DBs)
-    existing_cols = [row[1] for row in cursor.execute('PRAGMA table_info(chat_messages)').fetchall()]
-    if 'session_id' not in existing_cols:
-        cursor.execute('ALTER TABLE chat_messages ADD COLUMN session_id INTEGER REFERENCES chat_sessions(id) ON DELETE CASCADE')
+        # Create transactions table linked to user_id (TEXT for Supabase UUIDs)
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS transactions (
+                id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                type TEXT NOT NULL, -- 'income' or 'expense'
+                amount DOUBLE PRECISION NOT NULL,
+                description TEXT COLLATE "C" NOT NULL,
+                category_name TEXT COLLATE "C" NOT NULL,
+                date TEXT COLLATE "C" NOT NULL, -- YYYY-MM-DD
+                hours_worked DOUBLE PRECISION,
+                hourly_wage DOUBLE PRECISION,
+                tax_rate DOUBLE PRECISION,
+                gross_amount DOUBLE PRECISION
+            )
+        ''')
 
-    # Index on session_id (safe to run after column is guaranteed to exist)
-    cursor.execute('CREATE INDEX IF NOT EXISTS idx_chat_messages_session_id ON chat_messages(session_id);')
-    
-    # Pre-seed categories if empty
-    cursor.execute('SELECT COUNT(*) FROM categories WHERE user_id IS NULL')
-    if cursor.fetchone()[0] == 0:
-        default_categories = [
-            ("Fast Food", "•", "#FF6B6B"),
-            ("Clothes", "•", "#4DABF7"),
-            ("Technology", "•", "#BE4BDB"),
-            ("Flowers/Gifts", "•", "#FF8787"),
-            ("Education", "•", "#15AABF"),
-            ("Entertainment", "•", "#748FFC"),
-            ("Miscellaneous", "•", "#ADB5BD")
-        ]
-        cursor.executemany(
-            'INSERT INTO categories (name, icon, color, user_id) VALUES (?, ?, ?, NULL)',
-            default_categories
-        )
+        # Create indexes for performance
+        conn.execute('CREATE INDEX IF NOT EXISTS idx_transactions_user_id ON transactions(user_id);')
 
-    # The savings-goals feature was removed. One-time cleanup for databases
-    # created before this change - safe to run every startup (IF EXISTS).
-    cursor.execute('DROP TABLE IF EXISTS goals')
+        # Create user settings table for weekly reminder preferences and timezone
+        conn.execute(f'''
+            CREATE TABLE IF NOT EXISTS user_settings (
+                user_id TEXT PRIMARY KEY,
+                weekly_email_enabled INTEGER NOT NULL DEFAULT 1,
+                weekly_email_timezone TEXT NOT NULL DEFAULT 'UTC',
+                created_at TEXT DEFAULT ({NOW_SQL}),
+                updated_at TEXT DEFAULT ({NOW_SQL})
+            )
+        ''')
 
-    conn.commit()
-    conn.close()
+        # Create weekly email send log. The UNIQUE(user_id, week_start) pair is the
+        # duplicate guard: the job "claims" a row before sending, so two overlapping
+        # runs (cron firing twice, multiple workers) can never both send the
+        # same user the same week's recap.
+        conn.execute(f'''
+            CREATE TABLE IF NOT EXISTS weekly_email_log (
+                id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                week_start TEXT NOT NULL, -- YYYY-MM-DD, Monday of the summarized week
+                status TEXT NOT NULL DEFAULT 'sending', -- sending | sent | failed | skipped
+                attempts INTEGER NOT NULL DEFAULT 0,
+                provider_message_id TEXT,
+                error TEXT,
+                created_at TEXT DEFAULT ({NOW_SQL}),
+                updated_at TEXT DEFAULT ({NOW_SQL}),
+                UNIQUE(user_id, week_start)
+            )
+        ''')
+        conn.execute('CREATE INDEX IF NOT EXISTS idx_weekly_email_log_user_id ON weekly_email_log(user_id);')
+
+        # Create chat_sessions table
+        conn.execute(f'''
+            CREATE TABLE IF NOT EXISTS chat_sessions (
+                id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                title TEXT NOT NULL DEFAULT 'New Chat',
+                created_at TEXT COLLATE "C" DEFAULT ({NOW_SQL}),
+                updated_at TEXT COLLATE "C" DEFAULT ({NOW_SQL})
+            )
+        ''')
+        conn.execute('CREATE INDEX IF NOT EXISTS idx_chat_sessions_user_id ON chat_sessions(user_id);')
+
+        # Create chat_messages table
+        conn.execute(f'''
+            CREATE TABLE IF NOT EXISTS chat_messages (
+                id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                session_id BIGINT REFERENCES chat_sessions(id) ON DELETE CASCADE,
+                role TEXT NOT NULL,
+                content TEXT NOT NULL,
+                created_at TEXT COLLATE "C" DEFAULT ({NOW_SQL})
+            )
+        ''')
+        conn.execute('CREATE INDEX IF NOT EXISTS idx_chat_messages_user_id ON chat_messages(user_id);')
+        conn.execute('CREATE INDEX IF NOT EXISTS idx_chat_messages_session_id ON chat_messages(session_id);')
+
+        # Supabase exposes the public schema through its REST API, and the anon
+        # key is public (it's in app.js). RLS with no policies blocks that path
+        # entirely; this backend connects as the table owner, which bypasses RLS.
+        for table in TABLES:
+            conn.execute(f'ALTER TABLE {table} ENABLE ROW LEVEL SECURITY')
+
+        # Pre-seed categories if empty
+        count = conn.execute('SELECT COUNT(*) AS n FROM categories WHERE user_id IS NULL').fetchone()['n']
+        if count == 0:
+            default_categories = [
+                ("Fast Food", "•", "#FF6B6B"),
+                ("Clothes", "•", "#4DABF7"),
+                ("Technology", "•", "#BE4BDB"),
+                ("Flowers/Gifts", "•", "#FF8787"),
+                ("Education", "•", "#15AABF"),
+                ("Entertainment", "•", "#748FFC"),
+                ("Miscellaneous", "•", "#ADB5BD")
+            ]
+            with conn.cursor() as cursor:
+                cursor.executemany(
+                    'INSERT INTO categories (name, icon, color, user_id) VALUES (%s, %s, %s, NULL)',
+                    default_categories
+                )
+
+        conn.commit()
+    finally:
+        conn.close()
+
 
 if __name__ == '__main__':
+    from dotenv import load_dotenv
+    load_dotenv()
     init_db()
     print("Database initialized successfully.")

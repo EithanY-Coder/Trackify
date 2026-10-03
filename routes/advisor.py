@@ -4,6 +4,7 @@ from flask import Blueprint, request, jsonify, g
 from google import genai
 from google.genai import types
 
+from database import NOW_SQL
 from helpers import require_auth, get_db, limiter, get_user_financial_profile
 
 bp = Blueprint('advisor', __name__)
@@ -20,7 +21,7 @@ def list_advisor_sessions():
                COUNT(m.id) as message_count
         FROM chat_sessions s
         LEFT JOIN chat_messages m ON m.session_id = s.id
-        WHERE s.user_id = ?
+        WHERE s.user_id = %s
         GROUP BY s.id
         ORDER BY s.updated_at DESC
     ''', (g.user_id,)).fetchall()
@@ -34,12 +35,12 @@ def create_advisor_session():
     title = data.get('title', 'New Chat').strip() or 'New Chat'
     conn = get_db()
     cursor = conn.execute(
-        "INSERT INTO chat_sessions (user_id, title) VALUES (?, ?)",
+        "INSERT INTO chat_sessions (user_id, title) VALUES (%s, %s) RETURNING id",
         (g.user_id, title)
     )
+    session_id = cursor.fetchone()['id']
     conn.commit()
-    session_id = cursor.lastrowid
-    session = conn.execute('SELECT * FROM chat_sessions WHERE id = ?', (session_id,)).fetchone()
+    session = conn.execute('SELECT * FROM chat_sessions WHERE id = %s', (session_id,)).fetchone()
     return jsonify(dict(session)), 201
 
 
@@ -52,7 +53,7 @@ def rename_advisor_session(session_id):
         return jsonify({'error': 'Title is required.'}), 400
     conn = get_db()
     result = conn.execute(
-        "UPDATE chat_sessions SET title = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?",
+        f"UPDATE chat_sessions SET title = %s, updated_at = {NOW_SQL} WHERE id = %s AND user_id = %s",
         (title, session_id, g.user_id)
     )
     conn.commit()
@@ -66,8 +67,8 @@ def rename_advisor_session(session_id):
 def delete_advisor_session(session_id):
     conn = get_db()
     # Cascade delete handled by FK; also delete messages explicitly for safety
-    conn.execute('DELETE FROM chat_messages WHERE session_id = ? AND user_id = ?', (session_id, g.user_id))
-    result = conn.execute('DELETE FROM chat_sessions WHERE id = ? AND user_id = ?', (session_id, g.user_id))
+    conn.execute('DELETE FROM chat_messages WHERE session_id = %s AND user_id = %s', (session_id, g.user_id))
+    result = conn.execute('DELETE FROM chat_sessions WHERE id = %s AND user_id = %s', (session_id, g.user_id))
     conn.commit()
     if result.rowcount == 0:
         return jsonify({'error': 'Session not found.'}), 404
@@ -100,7 +101,7 @@ def advisor_chat():
     conn = get_db()
     # Verify session belongs to user
     session = conn.execute(
-        'SELECT * FROM chat_sessions WHERE id = ? AND user_id = ?', (session_id, g.user_id)
+        'SELECT * FROM chat_sessions WHERE id = %s AND user_id = %s', (session_id, g.user_id)
     ).fetchone()
     if not session:
         return jsonify({'error': 'Session not found.'}), 404
@@ -111,7 +112,7 @@ def advisor_chat():
     # 2. Get last 15 messages for this session
     history_rows = conn.execute('''
         SELECT role, content FROM chat_messages
-        WHERE user_id = ? AND session_id = ?
+        WHERE user_id = %s AND session_id = %s
         ORDER BY created_at ASC, id ASC
         LIMIT 15
     ''', (g.user_id, session_id)).fetchall()
@@ -171,11 +172,11 @@ Base all your advice on the user's real-time financial profile provided below. H
 
     # 6. Save messages
     conn.execute(
-        'INSERT INTO chat_messages (user_id, session_id, role, content) VALUES (?, ?, \'user\', ?)',
+        'INSERT INTO chat_messages (user_id, session_id, role, content) VALUES (%s, %s, \'user\', %s)',
         (g.user_id, session_id, message)
     )
     conn.execute(
-        'INSERT INTO chat_messages (user_id, session_id, role, content) VALUES (?, ?, \'model\', ?)',
+        'INSERT INTO chat_messages (user_id, session_id, role, content) VALUES (%s, %s, \'model\', %s)',
         (g.user_id, session_id, reply_text)
     )
 
@@ -183,12 +184,12 @@ Base all your advice on the user's real-time financial profile provided below. H
     if session['title'] == 'New Chat':
         auto_title = message[:45] + ('…' if len(message) > 45 else '')
         conn.execute(
-            'UPDATE chat_sessions SET title = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+            f'UPDATE chat_sessions SET title = %s, updated_at = {NOW_SQL} WHERE id = %s',
             (auto_title, session_id)
         )
     else:
         conn.execute(
-            'UPDATE chat_sessions SET updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+            f'UPDATE chat_sessions SET updated_at = {NOW_SQL} WHERE id = %s',
             (session_id,)
         )
 
@@ -204,7 +205,7 @@ def get_advisor_history():
     if session_id:
         history = conn.execute('''
             SELECT role, content, created_at FROM chat_messages
-            WHERE user_id = ? AND session_id = ?
+            WHERE user_id = %s AND session_id = %s
             ORDER BY created_at ASC, id ASC
         ''', (g.user_id, session_id)).fetchall()
     else:
@@ -220,8 +221,8 @@ def delete_advisor_history():
     session_id = request.args.get('session_id')
     conn = get_db()
     if session_id:
-        conn.execute('DELETE FROM chat_messages WHERE user_id = ? AND session_id = ?', (g.user_id, session_id))
+        conn.execute('DELETE FROM chat_messages WHERE user_id = %s AND session_id = %s', (g.user_id, session_id))
     else:
-        conn.execute('DELETE FROM chat_messages WHERE user_id = ?', (g.user_id,))
+        conn.execute('DELETE FROM chat_messages WHERE user_id = %s', (g.user_id,))
     conn.commit()
     return jsonify({'success': True, 'message': 'Conversation history cleared.'})

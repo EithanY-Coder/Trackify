@@ -31,7 +31,9 @@ from routes import register_blueprints
 if os.environ.get('DISABLE_SSL_VERIFY', '').strip().lower() == 'true':
     ssl._create_default_https_context = ssl._create_unverified_context
 
-app = Flask(__name__)
+# Static files live in public/static so Vercel serves them from its CDN at the
+# same /static/... URLs Flask uses locally.
+app = Flask(__name__, static_folder='public/static', static_url_path='/static')
 
 # Initialize database
 database.init_db()
